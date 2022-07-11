@@ -33,7 +33,10 @@ class CVATDatasetProcess:
         dataset_classes = dataset_classes[:-1]
         zip_date = zip_name.split('_')[-1].split('.')[0]
         date_time = datetime.strptime(zip_date, '%Y%m%d').strftime('%Y-%m-%d')
-        if 'CHIP' in dataset_classes:
+        if 'JQ' in dataset_classes:
+            dataset_folder = self.dataset_dir_path + '\\' + 'JQCHIPRC' + \
+                '\\' + date_time + '_' + dataset_classes
+        elif 'CHIP' in dataset_classes:
             dataset_folder = self.dataset_dir_path + '\\' + 'CHIPRC' + \
                 '\\' + date_time + '_' + dataset_classes
         elif 'PCIE' in dataset_classes:
