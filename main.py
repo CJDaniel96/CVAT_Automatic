@@ -64,6 +64,8 @@ class Main:
         task_list = cvat.search_task_ids(task_id, project_name)
         for each in task_list:
             cvat.download(project_name, each.task_id, self.cookie.cookies)
+        
+        return task
 
     def cvat_datasets_process(self):
         origin_path = self.configs['MoveOptions']['OriginPath']
@@ -94,6 +96,7 @@ class Main:
         session.close()
 
     def iri_record_check_status(self, status='Init', interval=60):
+        print('Waiting for ' + status + ' task')
         session = ai_create_session()
         while True:
             task = session.query(IriRecord).filter(IriRecord.status == status).order_by(IriRecord.update_time).first()
@@ -117,8 +120,7 @@ class Main:
         self.iri_record_status_update(task.id, 'Upload imagewith log finish')
 
         # Download
-        task = self.iri_record_check_status('OD_Initialized')
-        self.download()
+        task = self.download()
 
         # Unzip Data
         dataset_folder = self.cvat_datasets_process()
