@@ -1,0 +1,6 @@
+# Python:
+*.pyc
+
+# Folder:
+data/
+yolo/training_code/Datasets/
