@@ -1,5 +1,5 @@
 # Python:
-*.pyc
+*.py[cod]
 
 # Folder:
 data/
