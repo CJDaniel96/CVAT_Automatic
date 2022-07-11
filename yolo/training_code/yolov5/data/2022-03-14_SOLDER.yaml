@@ -1,0 +1,4 @@
+train: ../Datasets/training_data/SOLDER/2022-03-14_SOLDER/images/train
+val: ../Datasets/training_data/SOLDER/2022-03-14_SOLDER/images/val
+nc: 4
+names: ['SOLDER', 'SOLDER2', 'BIT', 'STAN']

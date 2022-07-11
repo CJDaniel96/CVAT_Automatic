@@ -1,0 +1,1 @@
+python train.py --batch 8 --epochs 300 --data ./data/2022-03-14_SOLDER.yaml --cfg ./models/2022-03-14_SOLDER.yaml --weights ./yolov5s.pt --name SOLDER/2022-03-14

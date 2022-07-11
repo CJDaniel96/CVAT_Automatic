@@ -1,0 +1,17 @@
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514115820~TEJ13AOIB020~C1301_2_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514084917~TEJ13AOIB020~R1735_17_top.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514235938~TEJ13AOIB020~C2604_21_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514143652~TEJ13AOIB020~R7422_4_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514135529~TEJ13AOIB020~C1301_21_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514144013~TEJ13AOIB020~C4108_20_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514231338~TEJ13AOIB020~R4123_12_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514140654~TEJ13AOIB020~R1738_18_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514135529~TEJ13AOIB020~R4303_13_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514131438~TEJ13AOIB020~C4140_16_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514222407~TEJ13AOIB020~R7200_1_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514100840~TEJ13AOIB020~C2268_10_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514205217~TEJ13AOIB020~R4123_1_top.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514132255~TEJ13AOIB020~R4302_13_top.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514135725~TEJ13AOIB020~C2154_4_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514112611~TEJ13AOIB020~FL4116_20_side.jpg
+D:\DanielTsai\Code\AIPlatform\CVAT\yolo\training_code\Datasets\raw_data\CHIPRC\2022-07-05_JQCHIPRC\txt\20220514230310~TEJ13AOIB020~FL4712_4_top.jpg
