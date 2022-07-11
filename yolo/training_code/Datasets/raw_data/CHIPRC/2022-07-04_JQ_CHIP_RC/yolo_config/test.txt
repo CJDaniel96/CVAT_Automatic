@@ -1,5 +1,0 @@
-../training_code/Datasets/raw_data/CHIPRC/2022-07-04_JQ_CHIP_RC\txt\20220620035603~TEJ13AOIB020~R0411_5_side.jpg
-../training_code/Datasets/raw_data/CHIPRC/2022-07-04_JQ_CHIP_RC\txt\20220605011203~TEJ13AOIB020~R1739_13_top.jpg
-../training_code/Datasets/raw_data/CHIPRC/2022-07-04_JQ_CHIP_RC\txt\20220605060456~TEJ13AOIB020~C4116_13_top.jpg
-../training_code/Datasets/raw_data/CHIPRC/2022-07-04_JQ_CHIP_RC\txt\20220605133745~TEJ13AOIB020~R1735_4_top.jpg
-../training_code/Datasets/raw_data/CHIPRC/2022-07-04_JQ_CHIP_RC\txt\20220620035603~TEJ13AOIB020~R2650_8_top.jpg
