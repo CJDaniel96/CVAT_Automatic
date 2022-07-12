@@ -208,23 +208,22 @@ class IriRecord(Base):
     __tablename__ = 'iri_record'
     __table_args__ = {'schema': 'amr'}
 
-    id = Column(Integer, primary_key=True, server_default=text(
-        "nextval('amr.iri_record_id_seq'::regclass)"), comment='No.')
-    project = Column(Text)
-    task = Column(Text)
+    id = Column(Integer, primary_key=True, server_default=text("nextval('amr.iri_record_id_seq'::regclass)"), comment='No.')
+    project = Column(Text, comment='CVAT project name')
+    task = Column(Text, comment='CVAT task name')
     status = Column(Text)
     site = Column(String)
     line = Column(String)
-    type = Column(String)
-    _from = Column('from', DateTime(True), comment='Time From')
-    to = Column(DateTime(True), comment='Time To')
+    group_type = Column(String)
+    start_date = Column(DateTime(True), comment='Time From')
+    end_date = Column(DateTime(True), comment='Time To')
     labeling = Column(Boolean)
     od_training = Column(Text)
     cls_training = Column(Text)
-    update_time = Column(DateTime(True), onupdate=func.now())
-    create_time = Column(DateTime(True), nullable=False,
-                         server_default=text("CURRENT_TIMESTAMP"))
-    task_id = Column(Integer)
+    update_time = Column(DateTime(True))
+    create_time = Column(DateTime(True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    task_id = Column(Integer, comment='CVAT task_id')
+    project_id = Column(Integer, comment='CVAT project_id')
 
 
 class OdTrainingInfo(Base):
@@ -275,6 +274,19 @@ class TrainingSchedule(Base):
         True), primary_key=True, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     training_start = Column(DateTime(True))
     training_end = Column(DateTime(True))
+
+class CategoryMapping(Base):
+    __tablename__ = 'category_mapping'
+    __table_args__ = {'schema': 'amr'}
+
+    id = Column(Integer, primary_key=True, server_default=text("nextval('amr.category_mapping_id_seq'::regclass)"))
+    site = Column(String, nullable=False)
+    factory = Column(String, nullable=False)
+    line = Column(String, nullable=False)
+    group_type = Column(String, nullable=False)
+    ng_category = Column(String, nullable=False)
+    ok_category = Column(String, nullable=False)
+    project = Column(String, nullable=False)
 
 
 t_v_amr_deploy_overview = Table(
