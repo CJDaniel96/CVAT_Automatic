@@ -5,3 +5,7 @@ test.py
 # Folder:
 data/
 yolo/training_code/Datasets/
+cls/JQCHIPRC/datasets/
+
+# Machine Models
+*.pt
