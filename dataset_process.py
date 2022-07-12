@@ -1,15 +1,19 @@
-import argparse
-from configparser import ConfigParser
 from datetime import datetime
+from configparser import ConfigParser
+from sklearn.model_selection import train_test_split
+from models.ai_models import CategoryMapping, create_session as ai_create_session
+
 import os
 import shutil
 import zipfile
+import argparse
+import xml.etree.ElementTree as ET
 
 
-class CVATDatasetProcess:
-    """Unzip and move the downloaded CVAT data to directive path.
-
+class DatasetProcessing:
+    """
     Attributes:
+        get_dataset_folder:       get the dataset folder
         create_dataset_folder:    create the dataset folder of preserve the downloaded data.
         zip_dir_path:             the .zip file path of downlaoded data.
         move_data:                move data to the raw dataset folder.
@@ -18,12 +22,22 @@ class CVATDatasetProcess:
         run:                      the run main program entrance.
         auto_run:                 auto run parse the origin path to unzip and move the data.
     """
-
-    def __init__(self, zip_path=None, dataset_dir_path=None, origin_dir_path=None):
+    def __init__(self, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
         self.zip_path = zip_path
         self.dataset_dir_path = dataset_dir_path
         self.origin_dir_path = origin_dir_path
         self._dataset_folder = None
+
+    def get_dataset_folder_name(self, dataset_classes, date_time) -> str:
+        date = datetime.strptime(date_time, '%Y%m%d').strftime('%Y-%m-%d')
+        dataset_folder = self.dataset_dir_path + '\\' + date + '_' + dataset_classes
+
+        return dataset_folder
+
+    def mkdir(self, path):
+        if not os.path.isdir(path):
+            os.mkdir(path)
+            print('Create ' + path + 'Success!')
 
     def create_dataset_folder(self):
         dataset_classes = ''
@@ -31,22 +45,9 @@ class CVATDatasetProcess:
         for each in zip_name.split('_')[:-1]:
             dataset_classes += each + '_'
         dataset_classes = dataset_classes[:-1]
-        zip_date = zip_name.split('_')[-1].split('.')[0]
-        date_time = datetime.strptime(zip_date, '%Y%m%d').strftime('%Y-%m-%d')
-        if 'JQ' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'JQCHIPRC' + \
-                '\\' + date_time + '_' + dataset_classes
-        elif 'CHIP' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'CHIPRC' + \
-                '\\' + date_time + '_' + dataset_classes
-        elif 'PCIE' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'PCIE' + \
-                '\\' + date_time + '_' + dataset_classes
-        elif 'SOLDER' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'SOLDER' + \
-                '\\' + date_time + '_' + dataset_classes
-        if not os.path.isdir(dataset_folder):
-            os.mkdir(dataset_folder)
+        date_time = zip_name.split('_')[-1].split('.')[0]
+        dataset_folder = self.get_dataset_folder_name(dataset_classes, date_time)
+        self.mkdir(dataset_folder)
 
         return dataset_folder
 
@@ -70,8 +71,12 @@ class CVATDatasetProcess:
         print('Copy finish!')
 
     def remove_unzip_file(self, zip_dir, zip_path):
+        if os.path.isdir(zip_dir + '\\Annotations'):
+            shutil.rmtree(zip_dir + '\\Annotations')
         if os.path.isdir(zip_dir + '\\ImageSets'):
             shutil.rmtree(zip_dir + '\\ImageSets')
+        if os.path.isdir(zip_dir + '\\JPEGImages'):
+            shutil.rmtree(zip_dir + '\\JPEGImages')
         if os.path.isfile(zip_dir + '\\labelmap.txt'):
             os.remove(zip_dir + '\\labelmap.txt')
         if os.path.isfile(zip_path):
@@ -105,6 +110,38 @@ class CVATDatasetProcess:
             if each[-4:] == '.zip':
                 self.zip_path = os.path.join(self.origin_dir_path, each)
                 self.run()
+
+class CVATDatasetProcess(DatasetProcessing):
+    """Unzip and move the downloaded CVAT data to directive path.
+
+    Attributes:
+        create_dataset_folder:    create the dataset folder of preserve the downloaded data.
+        zip_dir_path:             the .zip file path of downlaoded data.
+        move_data:                move data to the raw dataset folder.
+        remove_unzip_file:        remove the unzip file from the download path.
+        unzip:                    unzip the downloaded .zip file.
+        run:                      the run main program entrance.
+        auto_run:                 auto run parse the origin path to unzip and move the data.
+    """
+    def __init__(self, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+        super(CVATDatasetProcess, self).__init__(zip_path, dataset_dir_path, origin_dir_path)
+
+    def get_dataset_folder_name(self, dataset_classes, date_time) -> str:
+        date = datetime.strptime(date_time, '%Y%m%d').strftime('%Y-%m-%d')
+        if 'JQ' in dataset_classes:
+            dataset_folder = self.dataset_dir_path + '\\' + 'JQCHIPRC' + \
+                '\\' + date + '_' + dataset_classes
+        elif 'CHIP' in dataset_classes:
+            dataset_folder = self.dataset_dir_path + '\\' + 'CHIPRC' + \
+                '\\' + date + '_' + dataset_classes
+        elif 'PCIE' in dataset_classes:
+            dataset_folder = self.dataset_dir_path + '\\' + 'PCIE' + \
+                '\\' + date + '_' + dataset_classes
+        elif 'SOLDER' in dataset_classes:
+            dataset_folder = self.dataset_dir_path + '\\' + 'SOLDER' + \
+                '\\' + date + '_' + dataset_classes
+
+        return dataset_folder
 
 
 class DataMerge:
@@ -143,6 +180,76 @@ class DataMerge:
 
         print('Add BasicLine Finish!')
 
+
+class CLSDatasetProcess(DatasetProcessing):
+    def __init__(self, site, line, group_type, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+        super().__init__(zip_path, dataset_dir_path, origin_dir_path)
+        self.site = site
+        self.line = line
+        self.group_type = group_type
+
+    def parse_xml_ng_ok(self, xml, site, line, group_type) -> bool:
+        session = ai_create_session()
+        session.commit()
+        category_mapping = session.query(CategoryMapping).filter(
+            CategoryMapping.site == site, 
+            CategoryMapping.line == line, 
+            CategoryMapping.group_type == group_type
+        ).first()
+        session.close()
+        ng_category = eval(category_mapping.ng_category)
+        ok_category = eval(category_mapping.ok_category)
+        type_list = []
+        tree = ET.parse(xml)
+        root = tree.getroot()
+        for obj in root.findall('object'):
+            type_list.append(obj.find('name').text)
+        if list(set(type_list) & set(ok_category)) == []:
+            return False
+        elif list(set(type_list) & set(ng_category)) != []:
+            return False
+        else:
+            return True
+
+    def create_ng_ok_folder(self, dataset_folder):
+        self.mkdir(dataset_folder + '\\train')
+        self.mkdir(dataset_folder + '\\val')
+        self.mkdir(dataset_folder + '\\train\\NG')
+        self.mkdir(dataset_folder + '\\train\\OK')
+        self.mkdir(dataset_folder + '\\val\\NG')
+        self.mkdir(dataset_folder + '\\val\\OK')
+
+    def move(self, src_folder, dst_folder):
+        for each in src_folder:
+            shutil.move(each, dst_folder)
+
+    def move_data(self, zip_dir, dataset_folder):
+        ng_folder = []
+        ok_folder = []
+        for xml in os.listdir(zip_dir + '\\Annotations'):
+            xml_path = zip_dir + 'Annotations\\' + xml
+            img = xml[:-4] + '.jpg'
+            img_path = zip_dir + 'JPEGImages\\' + img
+            if self.parse_xml_ng_ok(xml_path, self.site, self.line, self.group_type):
+                ok_folder.append(img_path)
+            else:
+                ng_folder.append(img_path)
+        if ok_folder:
+            ok_train, ok_val = train_test_split(ok_folder)
+            self.move(ok_train, dataset_folder + '\\train\\OK')
+            self.move(ok_val, dataset_folder + '\\val\\OK')
+        if ng_folder:
+            ng_train, ng_val = train_test_split(ng_folder)
+            self.move(ng_train, dataset_folder + '\\train\\NG')
+            self.move(ng_val, dataset_folder + '\\val\\NG')
+
+    def run(self):
+        if self.unzip():
+            zip_dir = self.zip_dir_path()
+            self._dataset_folder = self.create_dataset_folder()
+            self.create_ng_ok_folder(self._dataset_folder)
+            self.move_data(zip_dir, self._dataset_folder)
+            self.remove_unzip_file(zip_dir, self.zip_path)
 
 def argsparser():
     parser = argparse.ArgumentParser()
