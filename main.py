@@ -3,7 +3,7 @@ import os
 import time
 from turtle import update
 from cvat import AutoDownloadOnCVAT, AutoUploadOnCVAT, CVATCookies
-from dataset_process import CVATDatasetProcess, DataMerge
+from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge
 from models.cvat_models import EngineTask, create_session as cvat_create_session
 from models.ai_models import IriRecord, create_session as ai_create_session
 
@@ -49,14 +49,7 @@ class Main:
         })
         session.close()
 
-    def download(self, status='OD_Initialized'):
-        session = ai_create_session()
-        while True:
-            session.commit()
-            task = session.query(IriRecord).filter(IriRecord.status == status).order_by(IriRecord.update_time.desc()).first()
-            if task != None:
-                break
-        session.close()
+    def download(self, task):
         task_id = task.task_id
         project_name = task.project
         cvat = AutoDownloadOnCVAT(self.api_path, self.annotation_format)
@@ -64,12 +57,10 @@ class Main:
         task_list = cvat.search_task_ids(task_id, project_name)
         for each in task_list:
             cvat.download(project_name, each.task_id, self.cookie.cookies)
-        
-        return task
 
     def cvat_datasets_process(self):
-        origin_path = self.configs['MoveOptions']['OriginPath']
-        dataset_path = self.configs['MoveOptions']['TargetPath']
+        origin_path = self.configs['ODMoveOptions']['OriginPath']
+        dataset_path = self.configs['ODMoveOptions']['TargetPath']
         copy_dataset = CVATDatasetProcess(
             origin_dir_path=origin_path,
             dataset_dir_path=dataset_path
@@ -78,8 +69,23 @@ class Main:
 
         return copy_dataset.dataset_folder
 
+    def cls_datasets_process(self, site, lines, group_type, project):
+        origin_path = self.configs['CLSMoveOptions']['OriginPath']
+        dataset_path = self.configs['CLSMoveOptions']['TargetPath']
+        copy_dataset = CLSDatasetProcess(
+            site=site,
+            lines=lines,
+            group_type=group_type,
+            project=project,
+            dataset_dir_path=dataset_path,
+            origin_dir_path=origin_path
+        )
+        copy_dataset.auto_run()
+
+        return copy_dataset.dataset_folder
+
     def dataset_merge(self, dataset_folder, comp_type):
-        basicline_dir = self.configs['MoveOptions']['BasicLineDir']
+        basicline_dir = self.configs['Basicline']['BasicLineDir']
         data_merge = DataMerge(dataset_folder, basicline_dir, comp_type)
         data_merge.add_basicline()
 
@@ -108,6 +114,19 @@ class Main:
 
         return task
 
+    def check_od_or_cls(self, interval=60):
+        print('Check status is OD or CLS')
+        session = ai_create_session()
+        while True:
+            task = session.query(IriRecord).filter(IriRecord.status.in_(['OD_Initialized', 'CLS_Initialized'])).order_by(IriRecord.update_time.desc()).first()
+            if task != None:
+                break
+            else:
+                time.sleep(interval)
+        session.close()
+
+        return task
+
     def run(self):
         # Init Task
         task = self.iri_record_check_status()
@@ -119,26 +138,35 @@ class Main:
         self.upload(task.id)
         self.iri_record_status_update(task.id, 'Upload imagewith log finish')
 
-        # Download
-        task = self.download()
+        # Decide OD_Initialized first or CLS_Initialized first
+        task = self.check_od_or_cls()
+        if task.status == 'OD_Initialized':
+            # Download
+            self.download(task)
 
-        # Unzip Data
-        dataset_folder = self.cvat_datasets_process()
-        class_name = 'PCIE' if 'PCIE' in dataset_folder else 'SOLDER' if 'SOLDER' in dataset_folder else 'JQCHIPRC' if 'JQ' in dataset_folder else 'CHIPRC'
-        self.dataset_merge(dataset_folder, class_name)
+            # Unzip Data
+            dataset_folder = self.cvat_datasets_process()
+            class_name = 'PCIE' if 'PCIE' in dataset_folder else 'SOLDER' if 'SOLDER' in dataset_folder else 'JQCHIPRC' if 'JQ' in dataset_folder else 'CHIPRC'
+            self.dataset_merge(dataset_folder, class_name)
 
-        # Pre-process
-        fullpath = os.getcwd() + dataset_folder[1:]
-        work_path = os.getcwd()
-        self.iri_record_status_update(task.id, 'Trigger training for OD', 'Running')
-        os.chdir(work_path + '/yolo/pre_process')
-        os.system('python yolo_preprocess.py --path ' + fullpath)
+            # Pre-process
+            fullpath = os.getcwd() + dataset_folder[1:]
+            work_path = os.getcwd()
+            self.iri_record_status_update(task.id, 'Trigger training for OD', 'Running')
+            os.chdir(work_path + '/yolo/pre_process')
+            os.system('python yolo_preprocess.py --path ' + fullpath)
 
-        # Yolo Training
-        os.chdir(work_path + '/yolo/training_code/yolov5')
-        self.iri_record_status_update(task.id, 'Training for OD', 'Running')
-        os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
+            # Yolo Training
+            os.chdir(work_path + '/yolo/training_code/yolov5')
+            self.iri_record_status_update(task.id, 'Training for OD', 'Running')
+            os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
 
+        # CLS
+        if task.od_training == 'Done':
+            pass
+        elif task.od_training == '-':
+            self.download(task)
+            dataset_folder = self.cls_datasets_process(task.site, task.line, task.group_type, task.project)
 
 if __name__ == '__main__':
     main = Main()
