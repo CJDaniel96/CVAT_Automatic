@@ -26,6 +26,15 @@ class DatasetProcessing:
         self.zip_path = zip_path
         self.dataset_dir_path = dataset_dir_path
         self.origin_dir_path = origin_dir_path
+        self._dataset_folder = None
+
+    @property
+    def dataset_folder(self):
+        return self._dataset_folder
+
+    @dataset_folder.setter
+    def dataset_folder(self, path):
+        self._dataset_folder = path
 
     def get_dataset_folder_name(self, dataset_classes, date_time) -> str:
         date = datetime.strptime(date_time, '%Y%m%d').strftime('%Y-%m-%d')
@@ -96,8 +105,8 @@ class DatasetProcessing:
     def run(self):
         if self.unzip():
             zip_dir = self.zip_dir_path()
-            dataset_folder = self.create_dataset_folder()
-            self.move_data(zip_dir, dataset_folder)
+            self.dataset_folder = self.create_dataset_folder()
+            self.move_data(zip_dir, self.dataset_folder)
             self.remove_unzip_file(zip_dir, self.zip_path)
 
     def auto_run(self):
@@ -277,11 +286,11 @@ class CLSDatasetProcess(DatasetProcessing):
             ng_categories, ok_categories, category_lines = self.get_categories()
             category_list, line_name_list = self.categories_processing(ng_categories, ok_categories, category_lines)
             for each_category, each_line_name in zip(category_list, line_name_list):
-                dataset_folder = self.create_dataset_folder()
-                dataset_folder = self.create_sub_dataset_folder(dataset_folder, each_line_name)
-                self.create_ng_ok_folder(dataset_folder)
+                self.dataset_folder = self.create_dataset_folder()
+                self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, each_line_name)
+                self.create_ng_ok_folder(self.dataset_folder)
                 ng_category, ok_category = self.category_split(each_category)
-                self.move_data(zip_dir, dataset_folder, ng_category, ok_category)
+                self.move_data(zip_dir, self.dataset_folder, ng_category, ok_category)
                 self.remove_unzip_file(zip_dir, self.zip_path)
 
 def argsparser():
