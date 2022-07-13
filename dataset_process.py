@@ -26,7 +26,6 @@ class DatasetProcessing:
         self.zip_path = zip_path
         self.dataset_dir_path = dataset_dir_path
         self.origin_dir_path = origin_dir_path
-        self._dataset_folder = None
 
     def get_dataset_folder_name(self, dataset_classes, date_time) -> str:
         date = datetime.strptime(date_time, '%Y%m%d').strftime('%Y-%m-%d')
@@ -37,7 +36,7 @@ class DatasetProcessing:
     def mkdir(self, path):
         if not os.path.isdir(path):
             os.mkdir(path)
-            print('Create ' + path + 'Success!')
+            print('Create ' + path + ' Success!')
 
     def create_dataset_folder(self):
         dataset_classes = ''
@@ -94,15 +93,11 @@ class DatasetProcessing:
             print('The zip file is not exist!')
             return False
 
-    @property
-    def dataset_folder(self):
-        return self._dataset_folder
-
     def run(self):
         if self.unzip():
             zip_dir = self.zip_dir_path()
-            self._dataset_folder = self.create_dataset_folder()
-            self.move_data(zip_dir, self._dataset_folder)
+            dataset_folder = self.create_dataset_folder()
+            self.move_data(zip_dir, dataset_folder)
             self.remove_unzip_file(zip_dir, self.zip_path)
 
     def auto_run(self):
@@ -182,23 +177,50 @@ class DataMerge:
 
 
 class CLSDatasetProcess(DatasetProcessing):
-    def __init__(self, site, line, group_type, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+    def __init__(self, site, lines, group_type, project, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
         super().__init__(zip_path, dataset_dir_path, origin_dir_path)
         self.site = site
-        self.line = line
+        self.lines = lines
         self.group_type = group_type
+        self.project = project
 
-    def parse_xml_ng_ok(self, xml, site, line, group_type) -> bool:
+    @property
+    def line(self):
+        return eval(self.lines)
+
+    def get_categories(self):
         session = ai_create_session()
         session.commit()
         category_mapping = session.query(CategoryMapping).filter(
-            CategoryMapping.site == site, 
-            CategoryMapping.line == line, 
-            CategoryMapping.group_type == group_type
-        ).first()
+            CategoryMapping.site == self.site, 
+            CategoryMapping.line.in_(self.line), 
+            CategoryMapping.group_type == self.group_type, 
+            CategoryMapping.project == self.project
+        ).all()
         session.close()
-        ng_category = eval(category_mapping.ng_category)
-        ok_category = eval(category_mapping.ok_category)
+
+        return [eval(category.ng_category) for category in category_mapping], [eval(category.ok_category) for category in category_mapping], [category.line for category in category_mapping]
+
+    def categories_processing(self, ng_categories, ok_categories, category_lines):
+        category_list = []
+        line_name_list = []
+        for ng_category, ok_category, category_line in zip(ng_categories, ok_categories, category_lines):
+            if repr(ng_category) + ', ' + repr(ok_category) not in category_list:
+                category_list.append(repr(ng_category) + ', ' + repr(ok_category))
+                line_name_list.append(category_line)
+            else:
+                line_name_list[category_list.index(repr(ng_category) + ', ' + repr(ok_category))] = line_name_list[category_list.index(repr(ng_category) + ', ' + repr(ok_category))] + category_line
+
+        
+        return category_list, line_name_list
+
+    def category_split(self, category):
+        ng_category = eval(category)[0]
+        ok_category = eval(category)[1]
+
+        return ng_category, ok_category
+
+    def parse_xml_ng_ok(self, xml, ng_category, ok_category) -> bool:
         type_list = []
         tree = ET.parse(xml)
         root = tree.getroot()
@@ -210,6 +232,12 @@ class CLSDatasetProcess(DatasetProcessing):
             return False
         else:
             return True
+
+    def create_sub_dataset_folder(self, dataset_folder, line_name):
+        sub_dataset_folder = os.path.join(dataset_folder, line_name)
+        self.mkdir(sub_dataset_folder)
+
+        return sub_dataset_folder
 
     def create_ng_ok_folder(self, dataset_folder):
         self.mkdir(dataset_folder + '\\train')
@@ -223,14 +251,14 @@ class CLSDatasetProcess(DatasetProcessing):
         for each in src_folder:
             shutil.move(each, dst_folder)
 
-    def move_data(self, zip_dir, dataset_folder):
+    def move_data(self, zip_dir, dataset_folder, ng_category, ok_category):
         ng_folder = []
         ok_folder = []
         for xml in os.listdir(zip_dir + '\\Annotations'):
             xml_path = zip_dir + 'Annotations\\' + xml
             img = xml[:-4] + '.jpg'
             img_path = zip_dir + 'JPEGImages\\' + img
-            if self.parse_xml_ng_ok(xml_path, self.site, self.line, self.group_type):
+            if self.parse_xml_ng_ok(xml_path, ng_category, ok_category):
                 ok_folder.append(img_path)
             else:
                 ng_folder.append(img_path)
@@ -246,10 +274,15 @@ class CLSDatasetProcess(DatasetProcessing):
     def run(self):
         if self.unzip():
             zip_dir = self.zip_dir_path()
-            self._dataset_folder = self.create_dataset_folder()
-            self.create_ng_ok_folder(self._dataset_folder)
-            self.move_data(zip_dir, self._dataset_folder)
-            self.remove_unzip_file(zip_dir, self.zip_path)
+            ng_categories, ok_categories, category_lines = self.get_categories()
+            category_list, line_name_list = self.categories_processing(ng_categories, ok_categories, category_lines)
+            for each_category, each_line_name in zip(category_list, line_name_list):
+                dataset_folder = self.create_dataset_folder()
+                dataset_folder = self.create_sub_dataset_folder(dataset_folder, each_line_name)
+                self.create_ng_ok_folder(dataset_folder)
+                ng_category, ok_category = self.category_split(each_category)
+                self.move_data(zip_dir, dataset_folder, ng_category, ok_category)
+                self.remove_unzip_file(zip_dir, self.zip_path)
 
 def argsparser():
     parser = argparse.ArgumentParser()
