@@ -1,10 +1,9 @@
 from configparser import ConfigParser, RawConfigParser
+from datetime import datetime
 import os
 import time
-from turtle import update
 from cvat import AutoDownloadOnCVAT, AutoUploadOnCVAT, CVATCookies
-from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge
-from models.cvat_models import EngineTask, create_session as cvat_create_session
+from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge, WithODCLSDatasetProcess
 from models.ai_models import IriRecord, create_session as ai_create_session
 
 
@@ -84,19 +83,29 @@ class Main:
 
         return copy_dataset.dataset_folder
 
+    def without_od_cls_datasets_process(self, class_name, dataset_folder):
+        origin_path = self.configs['CLSMoveOptions']['OriginPath']
+        dataset_path = self.configs['CLSMoveOptions']['TargetPath']
+        src = src + '/' + class_name + '/' + dataset_folder.split('\\')[-1]
+        copy_dataset = WithODCLSDatasetProcess(dataset_path, origin_path)
+        copy_dataset.run()
+
+        return copy_dataset.dataset_folder
+
     def dataset_merge(self, dataset_folder, comp_type):
         basicline_dir = self.configs['Basicline']['BasicLineDir']
         data_merge = DataMerge(dataset_folder, basicline_dir, comp_type)
         data_merge.add_basicline()
 
-    def iri_record_status_update(self, iri_record_id, status, od_training_status=None):
+    def iri_record_status_update(self, iri_record_id, status, od_training_status=None, cls_training_status=None):
         session = ai_create_session()
         session.commit()
         session.query(IriRecord).filter(
             IriRecord.id == iri_record_id
         ).update({
             "status": status,
-            "od_training": od_training_status
+            "od_training": od_training_status,
+            "cls_training": cls_training_status
         })
         session.commit()
         session.close()
@@ -160,13 +169,26 @@ class Main:
             os.chdir(work_path + '/yolo/training_code/yolov5')
             self.iri_record_status_update(task.id, 'Training for OD', 'Running')
             os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
+            os.chdir(work_path)
 
         # CLS
-        if task.od_training == 'Done':
-            pass
-        elif task.od_training == '-':
-            self.download(task)
-            dataset_folder = self.cls_datasets_process(task.site, task.line, task.group_type, task.project)
+        if task.status == 'CLS_Initialized':
+            self.iri_record_status_update(task.id, 'Trigger training for CLS', '-', 'Running')
+            # With OD Training
+            if task.od_training == 'Done':
+                dataset_folder = self.without_od_cls_datasets_process(class_name, dataset_folder)
+
+            # Without OD Training
+            else:
+                self.download(task)
+                dataset_folder = self.cls_datasets_process(task.site, task.line, task.group_type, task.project)
+
+            # CLS Training
+            os.chdir(work_path + '/cls/' + class_name)
+            self.iri_record_status_update(task.id, 'Training for CLS', '-', 'Running')
+            model_save_folder = 'save_' + class_name + '_ORG_' + datetime.now().strftime('%Y%m%d') + '/'
+            os.system('python train.py --data-dir ' + dataset_folder + ' --model-save-dir ./saved_models/' + model_save_folder)
+
 
 if __name__ == '__main__':
     main = Main()
