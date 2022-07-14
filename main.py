@@ -83,11 +83,14 @@ class Main:
 
         return copy_dataset.dataset_folder
 
-    def without_od_cls_datasets_process(self, class_name, dataset_folder):
-        origin_path = self.configs['CLSMoveOptions']['OriginPath']
-        dataset_path = self.configs['CLSMoveOptions']['TargetPath']
-        src = src + '/' + class_name + '/' + dataset_folder.split('\\')[-1]
-        copy_dataset = WithODCLSDatasetProcess(dataset_path, origin_path)
+    def without_od_cls_datasets_process(self, site, lines, group_type, project, src_dataset_folder):
+        copy_dataset = WithODCLSDatasetProcess(
+            site=site,
+            lines=lines,
+            group_type=group_type,
+            project=project,
+            dataset_dir_path=src_dataset_folder
+        )
         copy_dataset.run()
 
         return copy_dataset.dataset_folder
@@ -176,18 +179,18 @@ class Main:
             self.iri_record_status_update(task.id, 'Trigger training for CLS', '-', 'Running')
             # With OD Training
             if task.od_training == 'Done':
-                dataset_folder = self.without_od_cls_datasets_process(class_name, dataset_folder)
+                cls_dataset_folder = self.without_od_cls_datasets_process(task.site, task.line, task.group_type, task.project, dataset_folder)
 
             # Without OD Training
             else:
                 self.download(task)
-                dataset_folder = self.cls_datasets_process(task.site, task.line, task.group_type, task.project)
+                cls_dataset_folder = self.cls_datasets_process(task.site, task.line, task.group_type, task.project)
 
             # CLS Training
             os.chdir(work_path + '/cls/' + class_name)
             self.iri_record_status_update(task.id, 'Training for CLS', '-', 'Running')
             model_save_folder = 'save_' + class_name + '_ORG_' + datetime.now().strftime('%Y%m%d') + '/'
-            os.system('python train.py --data-dir ' + dataset_folder + ' --model-save-dir ./saved_models/' + model_save_folder)
+            os.system('python train.py --data-dir ' + cls_dataset_folder + ' --model-save-dir ./saved_models/' + model_save_folder)
 
 
 if __name__ == '__main__':

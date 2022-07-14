@@ -295,6 +295,23 @@ class CLSDatasetProcess(DatasetProcessing):
                 self.move_data(zip_dir, self.dataset_folder, ng_category, ok_category)
                 self.remove_unzip_file(zip_dir, self.zip_path)
 
+
+class WithODCLSDatasetProcess(CLSDatasetProcess):
+    def __init__(self, site, lines, group_type, project, dataset_dir_path=None) -> None:
+        super().__init__(site, lines, group_type, project, dataset_dir_path)
+
+    def run(self):
+        ng_categories, ok_categories, category_lines = self.get_categories()
+        category_list, line_name_list = self.categories_processing(ng_categories, ok_categories, category_lines)
+        for each_category, each_line_name in zip(category_list, line_name_list):
+            self.dataset_folder = self.create_dataset_folder()
+            self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, each_line_name)
+            self.create_ng_ok_folder(self.dataset_folder)
+            ng_category, ok_category = self.category_split(each_category)
+            self.move_data(self.dataset_dir_path, self.dataset_folder, ng_category, ok_category)
+            self.remove_unzip_file(self.dataset_dir_path, self.zip_path)
+
+
 def argsparser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--auto-run', action='store_true',
