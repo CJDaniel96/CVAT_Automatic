@@ -1,4 +1,4 @@
 names: ['COMP', 'STAN', 'GAP', 'TOUCH', 'MISSING', 'SHIFT', 'TPD']
 nc: 7
-train: D:\DanielTsai\Code\AIPlatform\CVAT\yolo/training_code/Datasets/training_data/JQCHIPRC/2022-07-11_JQCHIPRC/images/train/
-val: D:\DanielTsai\Code\AIPlatform\CVAT\yolo/training_code/Datasets/training_data/JQCHIPRC/2022-07-11_JQCHIPRC/images/val/
+train: D:\DanielTsai\Code\AIPlatform\CVAT\yolo/training_code/Datasets/training_data/JQCHIPRC/2022-07-13_JQCHIPRC/images/train/
+val: D:\DanielTsai\Code\AIPlatform\CVAT\yolo/training_code/Datasets/training_data/JQCHIPRC/2022-07-13_JQCHIPRC/images/val/
