@@ -192,6 +192,8 @@ class CLSDatasetProcess(DatasetProcessing):
         self.lines = lines
         self.group_type = group_type
         self.project = project
+        self.img_folder_name = 'Annotations'
+        self.xml_folder_name = 'JPEGImages'
 
     @property
     def line(self):
@@ -260,13 +262,13 @@ class CLSDatasetProcess(DatasetProcessing):
         for each in src_folder:
             shutil.move(each, dst_folder)
 
-    def move_data(self, zip_dir, dataset_folder, ng_category, ok_category):
+    def move_data(self, dir, dataset_folder, ng_category, ok_category):
         ng_folder = []
         ok_folder = []
-        for xml in os.listdir(zip_dir + '\\Annotations'):
-            xml_path = zip_dir + 'Annotations\\' + xml
+        for xml in os.listdir(dir + '\\' + self.xml_folder_name):
+            xml_path = dir + self.xml_folder_name + '\\' + xml
             img = xml[:-4] + '.jpg'
-            img_path = zip_dir + 'JPEGImages\\' + img
+            img_path = dir + self.img_folder_name + '\\' + img
             if self.parse_xml_ng_ok(xml_path, ng_category, ok_category):
                 ok_folder.append(img_path)
             else:
