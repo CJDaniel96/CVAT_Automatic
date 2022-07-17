@@ -22,7 +22,9 @@ class DatasetProcessing:
         run:                      the run main program entrance.
         auto_run:                 auto run parse the origin path to unzip and move the data.
     """
-    def __init__(self, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+    def __init__(self, iri_record, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+        self.task_name = iri_record.task
+        self.task_id = iri_record.task_id
         self.zip_path = zip_path
         self.dataset_dir_path = dataset_dir_path
         self.origin_dir_path = origin_dir_path
@@ -36,25 +38,13 @@ class DatasetProcessing:
     def dataset_folder(self, path):
         self._dataset_folder = path
 
-    def get_dataset_folder_name(self, dataset_classes, date_time) -> str:
-        date = datetime.strptime(date_time, '%Y%m%d').strftime('%Y-%m-%d')
-        dataset_folder = self.dataset_dir_path + '\\' + date + '_' + dataset_classes
-
-        return dataset_folder
-
     def mkdir(self, path):
         if not os.path.isdir(path):
             os.mkdir(path)
             print('Create ' + path + ' Success!')
 
     def create_dataset_folder(self):
-        dataset_classes = ''
-        zip_name = self.zip_path.split('\\')[-1]
-        for each in zip_name.split('_')[:-1]:
-            dataset_classes += each + '_'
-        dataset_classes = dataset_classes[:-1]
-        date_time = zip_name.split('_')[-1].split('.')[0]
-        dataset_folder = self.get_dataset_folder_name(dataset_classes, date_time)
+        dataset_folder = self.dataset_dir_path + '\\' + self.task_name
         self.mkdir(dataset_folder)
 
         return dataset_folder
@@ -127,26 +117,15 @@ class CVATDatasetProcess(DatasetProcessing):
         run:                      the run main program entrance.
         auto_run:                 auto run parse the origin path to unzip and move the data.
     """
-    def __init__(self, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
-        super(CVATDatasetProcess, self).__init__(zip_path, dataset_dir_path, origin_dir_path)
+    def __init__(self, iri_record, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+        super(CVATDatasetProcess, self).__init__(iri_record, zip_path, dataset_dir_path, origin_dir_path)
+        self.project = iri_record.project
 
-    def get_dataset_folder_name(self, dataset_classes, date_time) -> str:
-        date = datetime.strptime(date_time, '%Y%m%d').strftime('%Y-%m-%d')
-        if 'JQ' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'JQCHIPRC' + \
-                '\\' + date + '_' + dataset_classes
-        elif 'CHIP' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'CHIPRC' + \
-                '\\' + date + '_' + dataset_classes
-        elif 'PCIE' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'PCIE' + \
-                '\\' + date + '_' + dataset_classes
-        elif 'SOLDER' in dataset_classes:
-            dataset_folder = self.dataset_dir_path + '\\' + 'SOLDER' + \
-                '\\' + date + '_' + dataset_classes
+    def create_dataset_folder(self):
+        dataset_folder = self.dataset_dir_path + '\\' + self.project + '\\' + self.task_name
+        self.mkdir(dataset_folder)
 
         return dataset_folder
-
 
 class DataMerge:
     def __init__(self, dataset_folder, basicline_dir, comp_type):
@@ -154,7 +133,7 @@ class DataMerge:
         self.basicline_dir = basicline_dir
         self.comp_type = comp_type
 
-    def add_basicline(self):
+    def get_basicline(self):
         basicline = ''
         basicline_list = sorted(
             [
@@ -168,6 +147,11 @@ class DataMerge:
         for each in basicline_list[0]:
             basicline += each + '_'
         basicline = basicline[:-1]
+
+        return basicline
+
+    def od_add_basicline(self):
+        basicline = self.get_basicline()
         images_dir = self.basicline_dir + '\\' + \
             self.comp_type + '\\' + basicline + '\\images'
         xml_dir = self.basicline_dir + '\\' + self.comp_type + '\\' + basicline + '\\xml'
@@ -184,16 +168,45 @@ class DataMerge:
 
         print('Add BasicLine Finish!')
 
+    def copyfile(self, src_file_list, dst_folder):
+        for each in src_file_list:
+            shutil.copyfile(each, dst_folder + '\\' + each.split('\\')[-1])
+
+    def cls_add_basicline(self, ng_category, ok_category):
+        basicline = self.get_basicline()
+        images_dir = self.basicline_dir + '\\' + \
+            self.comp_type + '\\' + basicline + '\\images'
+        xml_dir = self.basicline_dir + '\\' + self.comp_type + '\\' + basicline + '\\xml'
+
+        ok_folder = []
+        ng_folder = []
+        for each in os.listdir(xml_dir):
+            img_name = each[:-4] + '.jpg'
+            if CLSDatasetProcess.parse_xml_ng_ok(xml_dir + '\\' + each, ng_category, ok_category):
+                ok_folder.append(images_dir + '\\' + img_name)
+            else:
+                ng_folder.append(images_dir + '\\' + img_name)
+        if ok_folder:
+            ok_train, ok_val = train_test_split(ok_folder)
+            self.copyfile(ok_train, self.dataset_folder + '\\train\\OK')
+            self.copyfile(ok_val, self.dataset_folder + '\\val\\OK')
+        if ng_folder:
+            ng_train, ng_val = train_test_split(ng_folder)
+            self.copyfile(ng_train, self.dataset_folder + '\\train\\NG')
+            self.copyfile(ng_val, self.dataset_folder + '\\val\\NG')
+
 
 class CLSDatasetProcess(DatasetProcessing):
-    def __init__(self, site, lines, group_type, project, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
-        super().__init__(zip_path, dataset_dir_path, origin_dir_path)
-        self.site = site
-        self.lines = lines
-        self.group_type = group_type
-        self.project = project
-        self.img_folder_name = 'Annotations'
-        self.xml_folder_name = 'JPEGImages'
+    def __init__(self, iri_record, zip_path=None, dataset_dir_path=None, origin_dir_path=None) -> None:
+        super().__init__(iri_record, zip_path, dataset_dir_path, origin_dir_path)
+        self.site = iri_record.site
+        self.lines = iri_record.line
+        self.group_type = iri_record.group_type
+        self.project = iri_record.project
+        self.img_folder_name = 'JPEGImages'
+        self.xml_folder_name = 'Annotations'
+        self._ng_category = None
+        self._ok_category = None
 
     @property
     def line(self):
@@ -231,6 +244,23 @@ class CLSDatasetProcess(DatasetProcessing):
 
         return ng_category, ok_category
 
+    @property
+    def ng_category(self):
+        return self._ng_category
+
+    @ng_category.setter
+    def ng_category(self, ng_list):
+        self._ng_category = ng_list
+
+    @property
+    def ok_category(self):
+        return self._ok_category
+
+    @ok_category.setter
+    def ok_category(self, ok_list):
+        self._ok_category = ok_list
+
+    @classmethod
     def parse_xml_ng_ok(self, xml, ng_category, ok_category) -> bool:
         type_list = []
         tree = ET.parse(xml)
@@ -266,9 +296,9 @@ class CLSDatasetProcess(DatasetProcessing):
         ng_folder = []
         ok_folder = []
         for xml in os.listdir(dir + '\\' + self.xml_folder_name):
-            xml_path = dir + self.xml_folder_name + '\\' + xml
+            xml_path = os.path.join(dir, self.xml_folder_name, xml)
             img = xml[:-4] + '.jpg'
-            img_path = dir + self.img_folder_name + '\\' + img
+            img_path = os.path.join(dir, self.img_folder_name, img)
             if self.parse_xml_ng_ok(xml_path, ng_category, ok_category):
                 ok_folder.append(img_path)
             else:
@@ -291,14 +321,21 @@ class CLSDatasetProcess(DatasetProcessing):
                 self.dataset_folder = self.create_dataset_folder()
                 self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, each_line_name)
                 self.create_ng_ok_folder(self.dataset_folder)
-                ng_category, ok_category = self.category_split(each_category)
-                self.move_data(zip_dir, self.dataset_folder, ng_category, ok_category)
+                self.ng_category, self.ok_category = self.category_split(each_category)
+                self.move_data(zip_dir, self.dataset_folder, self.ng_category, self.ok_category)
                 self.remove_unzip_file(zip_dir, self.zip_path)
 
 
 class WithODCLSDatasetProcess(CLSDatasetProcess):
-    def __init__(self, site, lines, group_type, project, dataset_dir_path=None) -> None:
-        super().__init__(site, lines, group_type, project, dataset_dir_path)
+    def __init__(self, iri_record, zip_path=None, dataset_dir_path=None, origin_dir_path=None):
+        super().__init__(iri_record, zip_path, dataset_dir_path, origin_dir_path)
+        self.xml_folder_name = 'xml'
+        self.img_folder_name = 'images'
+
+    def move(self, src_folder, dst_folder):
+        for each in src_folder:
+            dst_file = os.path.join(dst_folder, each.split('\\')[-1])
+            shutil.copyfile(each, dst_file)
 
     def run(self):
         ng_categories, ok_categories, category_lines = self.get_categories()
@@ -308,8 +345,7 @@ class WithODCLSDatasetProcess(CLSDatasetProcess):
             self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, each_line_name)
             self.create_ng_ok_folder(self.dataset_folder)
             ng_category, ok_category = self.category_split(each_category)
-            self.move_data(self.dataset_dir_path, self.dataset_folder, ng_category, ok_category)
-            self.remove_unzip_file(self.dataset_dir_path, self.zip_path)
+            self.move_data(self.origin_dir_path, self.dataset_folder, ng_category, ok_category)
 
 
 def argsparser():
