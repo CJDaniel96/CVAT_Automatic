@@ -1,4 +1,0 @@
-train: <train_path>
-val: <val_path>
-nc: 4
-names: ['SOLDER', 'SOLDER2', 'BIT', 'STAN']
