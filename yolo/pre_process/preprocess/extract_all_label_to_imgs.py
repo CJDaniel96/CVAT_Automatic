@@ -13,8 +13,8 @@ from tqdm import tqdm
 
 class extact_labels_to_imgs:
     _defaults = {'resize_to' : None , #(32, 32)
-                 'xml_file' : "cfg/xml_file.txt",
-                 'object_xml_file' : "cfg/xml_object.txt"}
+                 'xml_file' : "yolo/pre_process/cfg/xml_file.txt",
+                 'object_xml_file' : "yolo/pre_process/cfg/xml_object.txt"}
 
     @classmethod
     def get_defaults(cls, n):

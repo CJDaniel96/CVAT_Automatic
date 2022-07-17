@@ -66,7 +66,7 @@ class split_train_test:
 
 
     def fit_yolo_training_format(self, path, output_path):
-        file_name = path.split('\\')[-1].split('_', 1)[-1] 
+        file_name = path.split('\\')[-1]
         folder_name = datetime.datetime.today().strftime("%Y-%m-%d_" + file_name)
         output_path =output_path + '\\' + folder_name
         if not os.path.exists(output_path):

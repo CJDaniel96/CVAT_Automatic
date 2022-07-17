@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 class labels_to_yolo_format:
     _defaults = {'resize_to' : None , #(32, 32)
-                 'xml_file' : "cfg/xml_file.txt",
-                 'object_xml_file' : "cfg/xml_object.txt"}
+                 'xml_file' : "yolo/pre_process/cfg/xml_file.txt",
+                 'object_xml_file' : "yolo/pre_process/cfg/xml_object.txt"}
 
 
     def __init__(self, **kwargs):
