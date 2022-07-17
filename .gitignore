@@ -6,6 +6,8 @@ test.py
 data/
 yolo/training_code/Datasets/
 cls/JQCHIPRC/datasets/
+*.jpg
+*.xml
 
 # Machine Models
 *.pt
