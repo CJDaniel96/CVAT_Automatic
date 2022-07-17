@@ -1,7 +1,6 @@
 from configparser import ConfigParser, RawConfigParser
 from datetime import datetime
 import os
-from zipfile import ZipFile
 import zipfile
 import requests
 import argparse
@@ -52,8 +51,9 @@ class AutoUploadOnCVAT:
         upload_tasks_annotations:    Upload the Images' annotations to task on the CVAT.
     """
 
-    def __init__(self, api_path='http://10.0.13.80:8080/api/v1/', annotation_format='PASCAL%20VOC%201.1'):
+    def __init__(self, iri_record, api_path='http://10.0.13.80:8080/api/v1/', annotation_format='PASCAL%20VOC%201.1'):
         """inits methods varibles"""
+        self.iri_record = iri_record
         self.api_path = api_path
         self.annotation_format = annotation_format
         self._task_info = None
@@ -83,24 +83,20 @@ class AutoUploadOnCVAT:
 
     @property
     def task_name(self):
-        """Get task Name
+        """Set and Get task Name
 
         Returns:
             str: the task name create on the CVAT.
         """
+        line_name = ''
+        serial_number = datetime.now().strftime('%Y%m%d%H%M%S')
+        for each in eval(self.iri_record.line):
+            line_name += each
+        self._task_name = self.iri_record.group_type + '_' + line_name + '_' + serial_number
+
         return self._task_name
 
-    @task_name.setter
-    def task_name(self, project_name):
-        """Set the task name.
-
-        Args:
-            project_name (str): the name of the task from thich project
-        """
-        serial_number = datetime.now().strftime('%Y%m%d%H%M%S')
-        self._task_name = project_name + '_' + serial_number
-
-    def task_create_info(self, project_id):
+    def task_create_info(self):
         """make a dictonary of create task information.
 
         Args:
@@ -116,9 +112,9 @@ class AutoUploadOnCVAT:
         """
 
         return {
-            "name": self._task_name,
+            "name": self.task_name,
             "labels": [],
-            "project_id": project_id
+            "project_id": self.iri_record.project_id
         }
 
     def create_task(self, auth_header, task_create_info):
@@ -203,31 +199,23 @@ class AutoUploadOnCVAT:
 
         print('Upload annotations to task ' + str(task_id) + ' Finish!')
 
-    def upload(self, images_folder, xml_path, project_name, cookie):
+    def upload(self, images_folder, xml_path, cookie):
         """Run uploading the images and xmls to CVAt
 
         Args:
             images_folder (str): The images folder path
             xml_path (str): The xml file path
-            project_name (str): The name of task belong to which project
             cookie (Response): THe login auths cookie
         """
-        if not Settings.check_project_name(project_name):
-            print('Project name not exist!')
+        self.auth_header = cookie.json()['key']
+        task_create_info = self.task_create_info()
+        task_id = self.create_task(self.auth_header, task_create_info)
+        self.task_data = images_folder
+        self.upload_task_data(task_id, self.auth_header, self.task_data)
+        self.upload_tasks_annotations(task_id, self.auth_header, xml_path)
+        print('Upload Finish!')
 
-            return
-        else:
-            project_id = Settings.get_project_id(project_name)
-            self.auth_header = cookie.json()['key']
-            self.task_name = project_name
-            task_create_info = self.task_create_info(project_id)
-            task_id = self.create_task(self.auth_header, task_create_info)
-            self.task_data = images_folder
-            self.upload_task_data(task_id, self.auth_header, self.task_data)
-            self.upload_tasks_annotations(task_id, self.auth_header, xml_path)
-            print('Upload Finish!')
-
-            return task_id
+        return task_id, self.task_name
 
 
 class AutoDownloadOnCVAT:
@@ -243,17 +231,18 @@ class AutoDownloadOnCVAT:
 
         return task
 
-    def search_task_ids(self, task_id, comp_type):
+    def search_task_ids(self, task_id, comp_type, val_status='approve'):
         session = ai_create_session()
         od_training_info = session.query(OdTrainingInfo).filter(
             OdTrainingInfo.task_id < task_id,
-            OdTrainingInfo.comp_type == comp_type
+            OdTrainingInfo.comp_type == comp_type,
+            OdTrainingInfo.val_status == val_status
         ).all()
         session.close()
 
         return [task for task in od_training_info]
 
-    def download(self, project_name, task_id, cookies):
+    def download(self, task_name, task_id, cookies):
         """Download the tasks images and annotations.
 
         Args:
@@ -261,19 +250,17 @@ class AutoDownloadOnCVAT:
             cookies (cookies): the login user cookies.
         """
 
-        date_time = datetime.now().strftime('%Y%m%d')
         url = self.api_path + \
             "tasks/{}/dataset?format={}&action=download".format(
                 task_id, self.annotation_format
             )
-        resp = requests.get(url, cookies=cookies)
-        zip_name = project_name + '_' + date_time + '.zip'
-        ZipFile(zip_name, 'w')
+        while True:
+            resp = requests.get(url, cookies=cookies)
+            if len(resp.content) != 0:
+                break
+        zip_name = task_name + '.zip'
         with open(zip_name, 'wb') as zip_file:
             zip_file.write(resp.content)
-
-        while not zipfile.is_zipfile(zip_name):
-            self.download(project_name, task_id, cookies)
 
         print('Download the task ' + str(task_id) + ' Finish!')
 
@@ -442,7 +429,7 @@ def manual_mode(args):
 
     if args.upload == True:
         cvat = AutoUploadOnCVAT(args.api_path, args.annotation_format)
-        cvat.upload(
+        task_id, task_name = cvat.upload(
             args.images_folder,
             args.xml_zip,
             args.task_name,
@@ -477,7 +464,7 @@ def auto_mode(action):
 
     if action == 'upload':
         cvat = AutoUploadOnCVAT(api_path, annotation_format)
-        task_id = cvat.upload(images_folder, xml_zip, project_name, cookie)
+        task_id, task_name = cvat.upload(images_folder, xml_zip, project_name, cookie)
         configs.set('CVATOptions', 'TaskId', task_id)
         with open('settings/config.ini', 'w') as f:
             configs.write(f)
