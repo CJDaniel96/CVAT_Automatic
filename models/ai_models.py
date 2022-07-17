@@ -287,6 +287,7 @@ class CategoryMapping(Base):
     ng_category = Column(String, nullable=False)
     ok_category = Column(String, nullable=False)
     project = Column(String, nullable=False)
+    labels = Column(String, nullable=False)
 
 
 t_v_amr_deploy_overview = Table(
