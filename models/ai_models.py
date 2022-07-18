@@ -288,6 +288,11 @@ class CategoryMapping(Base):
     ok_category = Column(String, nullable=False)
     project = Column(String, nullable=False)
     labels = Column(String, nullable=False)
+    mode = Column(Integer, nullable=False)
+    od_model = Column(String)
+    od_mapping_category = Column(String)
+    cls_model = Column(String, nullable=False)
+    cls_mapping_category = Column(String, nullable=False)
 
 
 t_v_amr_deploy_overview = Table(
