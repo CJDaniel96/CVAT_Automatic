@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import time
 from cvat import AutoDownloadOnCVAT, AutoUploadOnCVAT, CVATCookies
-from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge, WithODCLSDatasetProcess
+from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge, ImageAugmentor, WithODCLSDatasetProcess
 from models.ai_models import IriRecord, create_session as ai_create_session
 from cls.JQ_SMT_B_CHIPRC import train as JQ_SMT_B_CHIPRC_train
 from yolo.pre_process.yolo_preprocess import YOLOPreProcess
@@ -107,6 +107,19 @@ class Main:
         data_merge = DataMerge(dataset_folder, basicline_dir, comp_type)
         data_merge.cls_add_basicline(ng_category, ok_category)
 
+    def images_augmentor(self, dataset_folder):
+        sub_folder_list = [
+            'train\\OK',
+            'train\\NG',
+            'val\\OK',
+            'val\\NG'
+        ]
+        aug = ImageAugmentor()
+        for each in sub_folder_list:
+            aug.src_path = os.path.join(dataset_folder, each)
+            aug.augmentor()
+            aug.images_resave_and_rename()
+
     def iri_record_status_update(self, iri_record_id, status, od_training_status=None, cls_training_status=None):
         session = ai_create_session()
         session.commit()
@@ -202,6 +215,9 @@ class Main:
                 self.download(iri_record)
                 cls_dataset_folder, cls_ng_category, cls_ok_category = self.cls_datasets_process(iri_record)
                 self.cls_dataset_merge(cls_dataset_folder, class_name, cls_ng_category, cls_ok_category)
+
+            # Augmentor
+            self.images_augmentor(cls_dataset_folder)
 
             # CLS Training
             self.iri_record_status_update(iri_record.id, 'Training for CLS', '-', 'Running')

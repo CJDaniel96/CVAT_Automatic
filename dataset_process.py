@@ -1,5 +1,6 @@
 from datetime import datetime
 from configparser import ConfigParser
+import Augmentor
 from sklearn.model_selection import train_test_split
 from models.ai_models import CategoryMapping, create_session as ai_create_session
 
@@ -346,6 +347,49 @@ class WithODCLSDatasetProcess(CLSDatasetProcess):
             self.create_ng_ok_folder(self.dataset_folder)
             ng_category, ok_category = self.category_split(each_category)
             self.move_data(self.origin_dir_path, self.dataset_folder, ng_category, ok_category)
+
+
+class ImageAugmentor:
+    def __init__(self):
+        self._src_path = None
+        self.multi_thread = 5
+        self._output_path = None
+    
+    @property
+    def src_path(self):
+        return self._src_path
+
+    @src_path.setter
+    def src_path(self, path):
+        self._src_path = path
+
+    @property
+    def output_path(self):
+        return os.path.join(self.src_path, 'output')
+
+    def augmentor(self):
+        length = len(os.listdir(self.src_path))
+        p = Augmentor.Pipeline(self.src_path)
+        p.random_brightness(probability = 0.5, min_factor = 0.8, max_factor = 1.2)
+        p.random_contrast(probability = 0.5, min_factor = 0.8, max_factor = 1.2)
+        p.random_color(probability = 0.5, min_factor = 0.8, max_factor = 1.2)
+        p.flip_left_right(probability=0.5)
+        p.flip_random(probability=0.5)
+        p.flip_top_bottom(probability=0.5)
+        p.rotate90(probability=0.5)
+        p.rotate180(probability=0.5)
+        p.rotate270(probability=0.5)
+        p.sample(self.multi_thread * length)
+
+    def images_resave_and_rename(self):
+        count = 0
+        for each in os.listdir(self.output_path):
+            count += 1
+            new_name = each.split('.')[0] + '_aug_' + str(count) + '.jpg'
+            src_file = os.path.join(self.output_path, each)
+            dst_file = os.path.join(self.src_path, new_name)
+            shutil.move(src_file, dst_file)
+        shutil.rmtree(self.output_path)
 
 
 def argsparser():
