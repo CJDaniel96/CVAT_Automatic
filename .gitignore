@@ -3,9 +3,11 @@
 test.py
 
 # Folder:
-data/
-yolo/training_code/Datasets/
-cls/JQCHIPRC/datasets/
+data/*
+yolo/training_code/Datasets/*
+cls/JQ_SMT_B_CHIPRC/datasets/*
+cls/JQ_SMT_B_CHIPRC/saved_models/*
+yolo_inference/output/*
 *.jpg
 *.xml
 
