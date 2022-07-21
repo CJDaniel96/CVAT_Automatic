@@ -5,7 +5,7 @@ import time
 from cvat import AutoDownloadOnCVAT, AutoUploadOnCVAT, CVATCookies
 from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge, ImageAugmentor, WithODCLSDatasetProcess
 from models.ai_models import IriRecord, create_session as ai_create_session
-from cls.JQ_SMT_B_CHIPRC import train as JQ_SMT_B_CHIPRC_train
+from cls import train as cls_train
 from yolo.pre_process.yolo_preprocess import YOLOPreProcess
 
 
@@ -75,7 +75,7 @@ class Main:
     def cls_datasets_process(self, iri_record):
         origin_path = self.configs['CLSMoveOptions']['OriginPath']
         dataset_dir = self.configs['CLSMoveOptions']['TargetDir']
-        dataset_path = dataset_dir + '\\' + iri_record.project + '\\datasets'
+        dataset_path = os.path.join(dataset_dir, 'datasets', iri_record.project)
         copy_dataset = CLSDatasetProcess(
             iri_record=iri_record,
             dataset_dir_path=dataset_path,
@@ -87,7 +87,7 @@ class Main:
 
     def with_od_cls_datasets_process(self, iri_record, origin_path):
         dataset_dir = self.configs['CLSMoveOptions']['TargetDir']
-        dataset_path = os.path.join(dataset_dir, iri_record.project, 'datasets')
+        dataset_path = os.path.join(dataset_dir, 'datasets', iri_record.project)
         copy_dataset = WithODCLSDatasetProcess(
             iri_record=iri_record,
             dataset_dir_path=dataset_path, 
@@ -160,11 +160,10 @@ class Main:
 
         return iri_record
 
-    def cls_training(self, project, cls_dataset_folder, model_save_folder):
-        model_save_dir = self.configs['CLSMoveOptions']['TargetDir'] + '\\' + project + '\\' + model_save_folder
-        if project == 'JQ_SMT_B_CHIPRC':
-            JQ_SMT_B_CHIPRC_train.create_save_dir(model_save_dir)
-            JQ_SMT_B_CHIPRC_train.train(cls_dataset_folder, model_save_dir)
+    def cls_training(self, cls_dataset_folder, model_save_folder):
+        model_save_dir = os.path.join(self.configs['CLSMoveOptions']['TargetDir'], model_save_folder)
+        cls_train.create_save_dir(model_save_dir)
+        cls_train.train(cls_dataset_folder, model_save_dir)
 
     def run(self):
         # Init Task
@@ -198,7 +197,7 @@ class Main:
             # Yolo Training
             os.chdir(work_path + '/yolo/training_code/yolov5')
             self.iri_record_status_update(iri_record.id, 'Training for OD', 'Running')
-            os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
+            # os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
             os.chdir(work_path)
 
         # CLS
@@ -222,8 +221,8 @@ class Main:
             # CLS Training
             self.iri_record_status_update(iri_record.id, 'Training for CLS', '-', 'Running')
             for cls_dataset_folder in cls_dataset_folder_list:
-                model_save_folder = 'saved_models\\' + 'save_' + class_name + '_' + cls_dataset_folder.split('\\')[-1] + '_' + datetime.now().strftime('%Y%m%d') + '\\'
-                self.cls_training(class_name, cls_dataset_folder, model_save_folder)
+                model_save_folder = os.path.join('saved_models', class_name, 'save_' + class_name + '_' + cls_dataset_folder.split('\\')[-1] + '_' + datetime.now().strftime('%Y%m%d'))
+                self.cls_training(cls_dataset_folder, model_save_folder)
 
 
 if __name__ == '__main__':
