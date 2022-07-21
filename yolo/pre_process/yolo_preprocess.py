@@ -59,12 +59,12 @@ class YOLOPreProcess:
             f.writelines('names: ' + str(list(class_list.keys())) + '\n')
             f.writelines('nc: ' + str(len(class_list.keys())) + '\n')
             f.writelines(
-                'train: ' + os.path.dirname(os.getcwd()) +
-                '/training_code/Datasets/training_data/' +
-                self.project + '/' + folder + '/images/train/' + '\n'
+                'train: ' + os.getcwd() +
+                    '/yolo/training_code/Datasets/training_data/' +
+                    self.project + '/' + folder + '/images/train/' + '\n'
             )
             f.writelines(
-                'val: ' + os.path.dirname(os.getcwd()) +
-                '/training_code/Datasets/training_data/' +
-                self.project + '/' + folder + '/images/val/' + '\n'
+                'val: ' + os.getcwd() +
+                    '/yolo/training_code/Datasets/training_data/' +
+                    self.project + '/' + folder + '/images/val/' + '\n'
             )
