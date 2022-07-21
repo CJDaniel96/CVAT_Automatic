@@ -2,14 +2,24 @@
 *.py[cod]
 test.py
 
-# Folder:
+# Folders:
 data/*
 yolo/training_code/Datasets/*
-cls/JQ_SMT_B_CHIPRC/datasets/*
-cls/JQ_SMT_B_CHIPRC/saved_models/*
+cls/datasets/*
+cls/saved_models/*
 yolo_inference/output/*
+
+# Files
 *.jpg
 *.xml
+yolo/training_code/yolov5/data/JQ_SMT_B_CHIPRC.yaml
+yolo/training_code/yolov5/data/NK_DAOI_CHIPRC.yaml
+yolo/training_code/yolov5/data/NK_DAOI_DIMM.yaml
+yolo/training_code/yolov5/data/NK_DAOI_PCIE.yaml
+yolo/training_code/yolov5/models/JQ_SMT_B_CHIPRC.yaml
+yolo/training_code/yolov5/models/NK_DAOI_CHIPRC.yaml
+yolo/training_code/yolov5/models/NK_DAOI_DIMM.yaml
+yolo/training_code/yolov5/models/NK_DAOI_PCIE.yaml
 
 # Machine Models
 *.pt
