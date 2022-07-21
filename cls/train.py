@@ -1,6 +1,6 @@
 import argparse
 import os
-from cls.JQ_SMT_B_CHIPRC.model import train_model
+from cls.model import train_model
 
 
 def train(data_dir, model_save_dir):
@@ -10,7 +10,7 @@ def train(data_dir, model_save_dir):
 
     model_cls = ['MobileNet_v2', 'VGG16']
     model_save = model_cls[n]
-    model_save_path = model_save_dir + model_save + '_epoch{}_{}_ACC{}.pt'
+    model_save_path = model_save_dir + '_' + model_save + '_epoch{}_{}_ACC{}.pt'
     batch_size = 64 if n == 0 else 8 # mobileNet max:64, VGG max:16
     num_epochs = 40
 
