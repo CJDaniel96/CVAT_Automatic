@@ -83,11 +83,11 @@ class Main:
         )
         copy_dataset.auto_run()
 
-        return copy_dataset.dataset_folder, copy_dataset.ng_category, copy_dataset.ok_category
+        return copy_dataset.dataset_folder_list, copy_dataset.ng_category_list, copy_dataset.ok_category_list
 
     def with_od_cls_datasets_process(self, iri_record, origin_path):
         dataset_dir = self.configs['CLSMoveOptions']['TargetDir']
-        dataset_path = dataset_dir + '\\' + iri_record.project + '\\datasets'
+        dataset_path = os.path.join(dataset_dir, iri_record.project, 'datasets')
         copy_dataset = WithODCLSDatasetProcess(
             iri_record=iri_record,
             dataset_dir_path=dataset_path, 
@@ -95,19 +95,19 @@ class Main:
         )
         copy_dataset.run()
 
-        return copy_dataset.dataset_folder
+        return copy_dataset.dataset_folder_list
 
     def od_dataset_merge(self, dataset_folder, comp_type):
         basicline_dir = self.configs['Basicline']['BasicLineDir']
-        data_merge = DataMerge(dataset_folder, basicline_dir, comp_type)
-        data_merge.od_add_basicline()
+        data_merge = DataMerge(basicline_dir, comp_type)
+        data_merge.od_add_basicline(dataset_folder)
 
-    def cls_dataset_merge(self, dataset_folder, comp_type, ng_category, ok_category):
+    def cls_dataset_merge(self, dataset_folder_list, comp_type, ng_categories, ok_categories):
         basicline_dir = self.configs['Basicline']['BasicLineDir']
-        data_merge = DataMerge(dataset_folder, basicline_dir, comp_type)
-        data_merge.cls_add_basicline(ng_category, ok_category)
+        data_merge = DataMerge(basicline_dir, comp_type)
+        data_merge.cls_add_basicline(dataset_folder_list, ng_categories, ok_categories)
 
-    def images_augmentor(self, dataset_folder):
+    def images_augmentor(self, dataset_folder_list):
         sub_folder_list = [
             'train\\OK',
             'train\\NG',
@@ -115,10 +115,11 @@ class Main:
             'val\\NG'
         ]
         aug = ImageAugmentor()
-        for each in sub_folder_list:
-            aug.src_path = os.path.join(dataset_folder, each)
-            aug.augmentor()
-            aug.images_resave_and_rename()
+        for dataset_folder in dataset_folder_list:
+            for each in sub_folder_list:
+                aug.src_path = os.path.join(dataset_folder, each)
+                aug.augmentor()
+                aug.images_resave_and_rename()
 
     def iri_record_status_update(self, iri_record_id, status, od_training_status=None, cls_training_status=None):
         session = ai_create_session()
@@ -167,14 +168,14 @@ class Main:
 
     def run(self):
         # Init Task
-        iri_record = self.iri_record_check_status()
+        # iri_record = self.iri_record_check_status()
 
         # # Upload
         self.parsers()
         self.get_cookies()
-        self.iri_record_status_update(iri_record.id, 'Upload imagewith log on going')
-        self.upload(iri_record)
-        self.iri_record_status_update(iri_record.id, 'Upload imagewith log finish')
+        # self.iri_record_status_update(iri_record.id, 'Upload imagewith log on going')
+        # self.upload(iri_record)
+        # self.iri_record_status_update(iri_record.id, 'Upload imagewith log finish')
 
         # Decide OD_Initialized first or CLS_Initialized first
         iri_record = self.check_od_or_cls()
@@ -206,23 +207,23 @@ class Main:
             # With OD Training
             if iri_record.od_training == 'Done':
                 self.iri_record_status_update(iri_record.id, 'Trigger training for CLS', 'Done', 'Running')
-                print(self.dataset_folder)
-                cls_dataset_folder = self.with_od_cls_datasets_process(iri_record, self.dataset_folder)
+                cls_dataset_folder_list = self.with_od_cls_datasets_process(iri_record, self.dataset_folder)
 
             # Without OD Training
             else:
                 self.iri_record_status_update(iri_record.id, 'Trigger training for CLS', '-', 'Running')
                 self.download(iri_record)
-                cls_dataset_folder, cls_ng_category, cls_ok_category = self.cls_datasets_process(iri_record)
-                self.cls_dataset_merge(cls_dataset_folder, class_name, cls_ng_category, cls_ok_category)
+                cls_dataset_folder_list, cls_ng_category_list, cls_ok_category_list = self.cls_datasets_process(iri_record)
+                self.cls_dataset_merge(cls_dataset_folder_list, class_name, cls_ng_category_list, cls_ok_category_list)
 
             # Augmentor
-            self.images_augmentor(cls_dataset_folder)
+            self.images_augmentor(cls_dataset_folder_list)
 
             # CLS Training
             self.iri_record_status_update(iri_record.id, 'Training for CLS', '-', 'Running')
-            model_save_folder = 'saved_models\\' + 'save_' + class_name + '_ORG_' + datetime.now().strftime('%Y%m%d') + '\\'
-            self.cls_training(class_name, cls_dataset_folder, model_save_folder)
+            for cls_dataset_folder in cls_dataset_folder_list:
+                model_save_folder = 'saved_models\\' + 'save_' + class_name + '_' + cls_dataset_folder.split('\\')[-1] + '_' + datetime.now().strftime('%Y%m%d') + '\\'
+                self.cls_training(class_name, cls_dataset_folder, model_save_folder)
 
 
 if __name__ == '__main__':
