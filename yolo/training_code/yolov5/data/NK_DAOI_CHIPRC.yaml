@@ -1,4 +1,0 @@
-names: ['BODY', 'STAN', 'PAD', 'COMP', 'MISSING', 'BIT']
-nc: 6
-train: D:\DanielTsai\Code\AIPlatform\CVAT\yolo/training_code/Datasets/training_data/CHIPRC/2022-06-28_RC/images/train/
-val: D:\DanielTsai\Code\AIPlatform\CVAT\yolo/training_code/Datasets/training_data/CHIPRC/2022-06-28_RC/images/val/

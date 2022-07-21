@@ -1,4 +1,0 @@
-train: <train_path>
-val: <val_path>
-nc: 3
-names: ['HOLD', 'STAN', 'else']
