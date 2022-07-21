@@ -3,12 +3,12 @@ from configparser import ConfigParser
 import Augmentor
 from sklearn.model_selection import train_test_split
 from models.ai_models import CategoryMapping, create_session as ai_create_session
-
 import os
 import shutil
 import zipfile
 import argparse
 import xml.etree.ElementTree as ET
+from yolo.pre_process.preprocess.extract_all_label_to_imgs import extact_labels_to_imgs
 
 
 class DatasetProcessing:
@@ -45,7 +45,7 @@ class DatasetProcessing:
             print('Create ' + path + ' Success!')
 
     def create_dataset_folder(self):
-        dataset_folder = self.dataset_dir_path + '\\' + self.task_name
+        dataset_folder = os.path.join(self.dataset_dir_path, self.task_name)
         self.mkdir(dataset_folder)
 
         return dataset_folder
@@ -129,8 +129,7 @@ class CVATDatasetProcess(DatasetProcessing):
         return dataset_folder
 
 class DataMerge:
-    def __init__(self, dataset_folder, basicline_dir, comp_type):
-        self.dataset_folder = dataset_folder
+    def __init__(self, basicline_dir, comp_type):
         self.basicline_dir = basicline_dir
         self.comp_type = comp_type
 
@@ -151,7 +150,7 @@ class DataMerge:
 
         return basicline
 
-    def od_add_basicline(self):
+    def od_add_basicline(self, dataset_folder):
         basicline = self.get_basicline()
         images_dir = self.basicline_dir + '\\' + \
             self.comp_type + '\\' + basicline + '\\images'
@@ -159,12 +158,12 @@ class DataMerge:
         for each in os.listdir(images_dir):
             shutil.copyfile(
                 images_dir + '\\' + each,
-                self.dataset_folder + '\\images\\' + each
+                dataset_folder + '\\images\\' + each
             )
         for each in os.listdir(xml_dir):
             shutil.copyfile(
                 xml_dir + '\\' + each,
-                self.dataset_folder + '\\xml\\' + each
+                dataset_folder + '\\xml\\' + each
             )
 
         print('Add BasicLine Finish!')
@@ -173,7 +172,7 @@ class DataMerge:
         for each in src_file_list:
             shutil.copyfile(each, dst_folder + '\\' + each.split('\\')[-1])
 
-    def cls_add_basicline(self, ng_category, ok_category):
+    def cls_add_basicline(self, cls_dataset_folder_list, ng_categories, ok_categories):
         basicline = self.get_basicline()
         images_dir = self.basicline_dir + '\\' + \
             self.comp_type + '\\' + basicline + '\\images'
@@ -181,20 +180,21 @@ class DataMerge:
 
         ok_folder = []
         ng_folder = []
-        for each in os.listdir(xml_dir):
-            img_name = each[:-4] + '.jpg'
-            if CLSDatasetProcess.parse_xml_ng_ok(xml_dir + '\\' + each, ng_category, ok_category):
-                ok_folder.append(images_dir + '\\' + img_name)
-            else:
-                ng_folder.append(images_dir + '\\' + img_name)
-        if ok_folder:
-            ok_train, ok_val = train_test_split(ok_folder)
-            self.copyfile(ok_train, self.dataset_folder + '\\train\\OK')
-            self.copyfile(ok_val, self.dataset_folder + '\\val\\OK')
-        if ng_folder:
-            ng_train, ng_val = train_test_split(ng_folder)
-            self.copyfile(ng_train, self.dataset_folder + '\\train\\NG')
-            self.copyfile(ng_val, self.dataset_folder + '\\val\\NG')
+        for cls_dataset_folder, ng_category, ok_category in zip(cls_dataset_folder_list, ng_categories, ok_categories):
+            for each in os.listdir(xml_dir):
+                img_name = each[:-4] + '.jpg'
+                if CLSDatasetProcess.parse_xml_ng_ok(xml_dir + '\\' + each, ng_category, ok_category):
+                    ok_folder.append(images_dir + '\\' + img_name)
+                else:
+                    ng_folder.append(images_dir + '\\' + img_name)
+            if ok_folder:
+                ok_train, ok_val = train_test_split(ok_folder)
+                self.copyfile(ok_train, cls_dataset_folder + '\\train\\OK')
+                self.copyfile(ok_val, cls_dataset_folder + '\\val\\OK')
+            if ng_folder:
+                ng_train, ng_val = train_test_split(ng_folder)
+                self.copyfile(ng_train, cls_dataset_folder + '\\train\\NG')
+                self.copyfile(ng_val, cls_dataset_folder + '\\val\\NG')
 
 
 class CLSDatasetProcess(DatasetProcessing):
@@ -206,8 +206,9 @@ class CLSDatasetProcess(DatasetProcessing):
         self.project = iri_record.project
         self.img_folder_name = 'JPEGImages'
         self.xml_folder_name = 'Annotations'
-        self._ng_category = None
-        self._ok_category = None
+        self._ng_category_list = []
+        self._ok_category_list = []
+        self._dataset_folder_list = []
 
     @property
     def line(self):
@@ -224,7 +225,25 @@ class CLSDatasetProcess(DatasetProcessing):
         ).all()
         session.close()
 
-        return [eval(category.ng_category) for category in category_mapping], [eval(category.ok_category) for category in category_mapping], [category.line for category in category_mapping]
+        ng_categories = []
+        ok_categories = []
+        category_lines_list = []
+        cls_models = []
+        cls_mapping_categories = []
+        for category in category_mapping:
+            if eval(category.ng_category) not in ng_categories:
+                ng_categories.append(eval(category.ng_category))
+            if eval(category.ok_category) not in ok_categories:
+                ok_categories.append(eval(category.ok_category))
+                category_lines_list.append(category.line)
+            else:
+                category_lines_list[ok_categories.index(eval(category.ok_category))] += category.line
+            if eval(category.cls_model) not in cls_models:
+                cls_models.append(eval(category.cls_model))
+            if eval(category.cls_mapping_category) not in cls_mapping_categories:
+                cls_mapping_categories.append(eval(category.cls_mapping_category))
+
+        return ng_categories, ok_categories, category_lines_list, cls_models, cls_mapping_categories
 
     def categories_processing(self, ng_categories, ok_categories, category_lines):
         category_list = []
@@ -246,20 +265,28 @@ class CLSDatasetProcess(DatasetProcessing):
         return ng_category, ok_category
 
     @property
-    def ng_category(self):
-        return self._ng_category
+    def ng_category_list(self):
+        return self._ng_category_list
 
-    @ng_category.setter
-    def ng_category(self, ng_list):
-        self._ng_category = ng_list
+    @ng_category_list.setter
+    def ng_category_list(self, ng_list):
+        self._ng_category_list = ng_list
 
     @property
-    def ok_category(self):
-        return self._ok_category
+    def ok_category_list(self):
+        return self._ok_category_list
 
-    @ok_category.setter
-    def ok_category(self, ok_list):
-        self._ok_category = ok_list
+    @ok_category_list.setter
+    def ok_category_list(self, ok_list):
+        self._ok_category_list = ok_list
+
+    @property
+    def dataset_folder_list(self):
+        return self._dataset_folder_list
+
+    @dataset_folder_list.setter
+    def dataset_folder_list(self, dataset_folder):
+        self._dataset_folder_list.append(dataset_folder)
 
     @classmethod
     def parse_xml_ng_ok(self, xml, ng_category, ok_category) -> bool:
@@ -274,6 +301,12 @@ class CLSDatasetProcess(DatasetProcessing):
             return False
         else:
             return True
+
+    def create_cls_model_dataset_folder(self, dataset_folder, cls_model_name):
+        cls_model_dataset_folder = os.path.join(dataset_folder, cls_model_name)
+        self.mkdir(cls_model_dataset_folder)
+
+        return cls_model_dataset_folder
 
     def create_sub_dataset_folder(self, dataset_folder, line_name):
         sub_dataset_folder = os.path.join(dataset_folder, line_name)
@@ -293,17 +326,52 @@ class CLSDatasetProcess(DatasetProcessing):
         for each in src_folder:
             shutil.move(each, dst_folder)
 
-    def move_data(self, dir, dataset_folder, ng_category, ok_category):
+    def default_split_ng_ok_imgs(self, src_dir, ng_category, ok_category):
         ng_folder = []
         ok_folder = []
-        for xml in os.listdir(dir + '\\' + self.xml_folder_name):
-            xml_path = os.path.join(dir, self.xml_folder_name, xml)
+        for xml in os.listdir(src_dir + '\\' + self.xml_folder_name):
+            xml_path = os.path.join(src_dir, self.xml_folder_name, xml)
             img = xml[:-4] + '.jpg'
-            img_path = os.path.join(dir, self.img_folder_name, img)
+            img_path = os.path.join(src_dir, self.img_folder_name, img)
             if self.parse_xml_ng_ok(xml_path, ng_category, ok_category):
                 ok_folder.append(img_path)
             else:
                 ng_folder.append(img_path)
+
+        return ng_folder, ok_folder
+
+    def crop_split_ng_ok_imgs(self, src_dir, ng_category, ok_category, each_cls_mapping_category):
+        ng_list = []
+        ok_list = []
+        ng_folder = []
+        ok_folder = []
+        img_folder = src_dir + '\\' + self.img_folder_name
+        xml_folder = src_dir + '\\' + self.xml_folder_name
+        extract_to = src_dir + '\\extract'
+
+        extact_labels = extact_labels_to_imgs()
+        extact_labels.extact_labels_to_imgs(img_folder, xml_folder, extract_to)
+
+        for xml in os.listdir(xml_folder):
+            xml_path = os.path.join(src_dir, self.xml_folder_name, xml)
+            img_name = xml[:-4]
+            if self.parse_xml_ng_ok(xml_path, ng_category, ok_category):
+                ok_list.append(img_name)
+            else:
+                ng_list.append(img_name)
+
+        for img in os.listdir(os.path.join(extract_to, each_cls_mapping_category)):
+            img_path = os.path.join(extract_to, each_cls_mapping_category, img)
+            for ng_img_name in ng_list:
+                if ng_img_name in img:
+                    ng_folder.append(img_path)
+            for ok_img_name in ok_list:
+                if ok_img_name in img:
+                    ok_folder.append(img_path)
+
+        return ng_folder, ok_folder
+
+    def move_data(self, dataset_folder, ng_folder, ok_folder):
         if ok_folder:
             ok_train, ok_val = train_test_split(ok_folder)
             self.move(ok_train, dataset_folder + '\\train\\OK')
@@ -313,18 +381,48 @@ class CLSDatasetProcess(DatasetProcessing):
             self.move(ng_train, dataset_folder + '\\train\\NG')
             self.move(ng_val, dataset_folder + '\\val\\NG')
 
+    def remove_unzip_file(self, zip_dir, zip_path):
+        if os.path.isdir(zip_dir + '\\Annotations'):
+            shutil.rmtree(zip_dir + '\\Annotations')
+        if os.path.isdir(zip_dir + '\\ImageSets'):
+            shutil.rmtree(zip_dir + '\\ImageSets')
+        if os.path.isdir(zip_dir + '\\JPEGImages'):
+            shutil.rmtree(zip_dir + '\\JPEGImages')
+        if os.path.isfile(zip_dir + '\\labelmap.txt'):
+            os.remove(zip_dir + '\\labelmap.txt')
+        if os.path.isfile(zip_path):
+            os.remove(zip_path)
+
+        if os.path.isdir(zip_dir + '\\extract'):
+            shutil.rmtree(zip_dir + '\\extract')
+
+        print('Clean Unzip Files Finish!')
+
     def run(self):
         if self.unzip():
             zip_dir = self.zip_dir_path()
-            ng_categories, ok_categories, category_lines = self.get_categories()
-            category_list, line_name_list = self.categories_processing(ng_categories, ok_categories, category_lines)
-            for each_category, each_line_name in zip(category_list, line_name_list):
-                self.dataset_folder = self.create_dataset_folder()
-                self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, each_line_name)
-                self.create_ng_ok_folder(self.dataset_folder)
-                self.ng_category, self.ok_category = self.category_split(each_category)
-                self.move_data(zip_dir, self.dataset_folder, self.ng_category, self.ok_category)
-                self.remove_unzip_file(zip_dir, self.zip_path)
+            self.dataset_folder = self.create_dataset_folder()
+            ng_categories, ok_categories, category_lines_list, cls_models, cls_mapping_categories = self.get_categories()
+            self.ng_category_list, self.ok_category_list = ng_categories, ok_categories
+            for ng_category, ok_category, category_line, cls_model_name, cls_mapping_category in zip(
+                ng_categories, 
+                ok_categories, 
+                category_lines_list, 
+                cls_models, 
+                cls_mapping_categories
+            ):
+                self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, category_line)
+                for each_cls_model_name, each_cls_mapping_category in zip(cls_model_name, cls_mapping_category):
+                    cls_model_dataset_folder = self.create_cls_model_dataset_folder(self.dataset_folder, each_cls_model_name)
+                    self.create_ng_ok_folder(cls_model_dataset_folder)
+                    self.dataset_folder_list = cls_model_dataset_folder
+                    if each_cls_model_name == 'ORG':
+                        ng_folder, ok_folder = self.default_split_ng_ok_imgs(zip_dir, ng_category, ok_category)
+                        self.move_data(cls_model_dataset_folder, ng_folder, ok_folder)
+                    else:
+                        ng_folder, ok_folder = self.crop_split_ng_ok_imgs(zip_dir, ng_category, ok_category, each_cls_mapping_category)
+                        self.move_data(cls_model_dataset_folder, ng_folder, ok_folder)
+            self.remove_unzip_file(zip_dir, self.zip_path)
 
 
 class WithODCLSDatasetProcess(CLSDatasetProcess):
@@ -338,15 +436,51 @@ class WithODCLSDatasetProcess(CLSDatasetProcess):
             dst_file = os.path.join(dst_folder, each.split('\\')[-1])
             shutil.copyfile(each, dst_file)
 
+    def crop_split_ng_ok_imgs(self, ng_category, ok_category, each_cls_mapping_category):
+        ng_list = []
+        ok_list = []
+        ng_folder = []
+        ok_folder = []
+
+        for xml in os.listdir(os.path.join(self.origin_dir_path, self.xml_folder_name)):
+            xml_path = os.path.join(self.origin_dir_path, self.xml_folder_name, xml)
+            img = xml[:-4]
+            if self.parse_xml_ng_ok(xml_path, ng_category, ok_category):
+                ok_list.append(img)
+            else:
+                ng_list.append(img)
+        
+        for img in os.listdir(os.path.join(self.origin_dir_path, 'extract', each_cls_mapping_category)):
+            img_path = os.path.join(self.origin_dir_path, 'extract', each_cls_mapping_category, img)
+            for ng_img_name in ng_list:
+                if ng_img_name in img:
+                    ng_folder.append(img_path)
+            for ok_img_name in ok_list:
+                if ok_img_name in img:
+                    ok_folder.append(img_path)
+
     def run(self):
-        ng_categories, ok_categories, category_lines = self.get_categories()
-        category_list, line_name_list = self.categories_processing(ng_categories, ok_categories, category_lines)
-        for each_category, each_line_name in zip(category_list, line_name_list):
-            self.dataset_folder = self.create_dataset_folder()
-            self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, each_line_name)
-            self.create_ng_ok_folder(self.dataset_folder)
-            ng_category, ok_category = self.category_split(each_category)
-            self.move_data(self.origin_dir_path, self.dataset_folder, ng_category, ok_category)
+        self.dataset_folder = self.create_dataset_folder()
+        ng_categories, ok_categories, category_lines_list, cls_models, cls_mapping_categories = self.get_categories()
+        self.ng_category_list, self.ok_category_list = ng_categories, ok_categories
+        for ng_category, ok_category, category_line, cls_model_name, cls_mapping_category in zip(
+            ng_categories, 
+            ok_categories, 
+            category_lines_list, 
+            cls_models, 
+            cls_mapping_categories
+        ):
+            self.dataset_folder = self.create_sub_dataset_folder(self.dataset_folder, category_line)
+            for each_cls_model_name, each_cls_mapping_category in zip(cls_model_name, cls_mapping_category):
+                cls_model_dataset_folder = self.create_cls_model_dataset_folder(self.dataset_folder, each_cls_model_name)
+                self.create_ng_ok_folder(cls_model_dataset_folder)
+                self.dataset_folder_list = cls_model_dataset_folder
+                if each_cls_model_name == 'ORG':
+                    ng_folder, ok_folder = self.default_split_ng_ok_imgs(self.origin_dir_path, ng_category, ok_category)
+                    self.move_data(cls_model_dataset_folder, ng_folder, ok_folder)
+                else:
+                    ng_folder, ok_folder = self.crop_split_ng_ok_imgs(self.origin_dir_path, ng_category, ok_category, each_cls_mapping_category)
+                    self.move_data(cls_model_dataset_folder, ng_folder, ok_folder)
 
 
 class ImageAugmentor:
