@@ -167,14 +167,14 @@ class Main:
 
     def run(self):
         # Init Task
-        # iri_record = self.iri_record_check_status()
+        iri_record = self.iri_record_check_status()
 
         # # Upload
         self.parsers()
         self.get_cookies()
-        # self.iri_record_status_update(iri_record.id, 'Upload imagewith log on going')
-        # self.upload(iri_record)
-        # self.iri_record_status_update(iri_record.id, 'Upload imagewith log finish')
+        self.iri_record_status_update(iri_record.id, 'Upload imagewith log on going')
+        self.upload(iri_record)
+        self.iri_record_status_update(iri_record.id, 'Upload imagewith log finish')
 
         # Decide OD_Initialized first or CLS_Initialized first
         iri_record = self.check_od_or_cls()
@@ -197,7 +197,7 @@ class Main:
             # Yolo Training
             os.chdir(work_path + '/yolo/training_code/yolov5')
             self.iri_record_status_update(iri_record.id, 'Training for OD', 'Running')
-            # os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
+            os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
             os.chdir(work_path)
 
         # CLS
