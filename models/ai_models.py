@@ -220,7 +220,7 @@ class IriRecord(Base):
     labeling = Column(Boolean)
     od_training = Column(Text)
     cls_training = Column(Text)
-    update_time = Column(DateTime(True))
+    update_time = Column(DateTime(True), onupdate=func.now())
     create_time = Column(DateTime(True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     task_id = Column(Integer, comment='CVAT task_id')
     project_id = Column(Integer, comment='CVAT project_id')
