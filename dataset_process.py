@@ -1,8 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from configparser import ConfigParser
 import Augmentor
+import requests
 from sklearn.model_selection import train_test_split
-from models.ai_models import CategoryMapping, create_session as ai_create_session
+from models.ai_models import CategoryMapping, ImagePool, create_session as ai_create_session
+from models.amr_nifi_test_models import AmrRawData, create_session as amr_nifi_test_create_session
 import os
 import shutil
 import zipfile
@@ -195,6 +197,59 @@ class DataMerge:
                 ng_train, ng_val = train_test_split(ng_folder)
                 self.copyfile(ng_train, cls_dataset_folder + '\\train\\NG')
                 self.copyfile(ng_val, cls_dataset_folder + '\\val\\NG')
+
+
+class InitDataProcess:
+    def __init__(self, iri_record):
+        self.end_date = iri_record.end_date
+        self.site = iri_record.site
+        self.lines = iri_record.line
+        self.group_type = iri_record.group_type
+        self.start_date = iri_record.start_date
+
+    def images_list_from_image_pool(self):
+        image_list = []
+        session = amr_nifi_test_create_session()
+        self.end_date += timedelta(days=1)
+        amr_raw_data = session.query(AmrRawData.image_path).filter(
+            AmrRawData.site == self.site,
+            AmrRawData.line_id.in_(eval(self.lines)),
+            AmrRawData.group_type == self.group_type,
+            AmrRawData.create_time.between(self.start_date, self.end_date),
+            AmrRawData.is_covered == True,
+            AmrRawData.ai_result == '0'
+        ).all()
+        for image_path_obj in amr_raw_data:
+            image_list.append(image_path_obj.image_path)
+
+        return image_list
+
+    def download_images(self, image_list, data_folder_path, url='http://172.20.20.10:8888/imagesinzip'):
+        session = ai_create_session()
+        image_pool = session.query(ImagePool.ip).filter(ImagePool.line.in_(eval(self.lines))).all()
+        for each in image_pool:
+            resp = requests.post(url, json={
+                "ip": each.ip,
+                "paths": image_list
+            })
+            if resp.status_code == 200:
+                with open(os.path.join(data_folder_path, each.line), 'wb') as zip_file:
+                    zip_file.write(resp.content)
+
+    def image_data_process(self, data_folder_path, unzip_folder_name='org_data'):
+        unzip_folder_name += '_' + datetime.now().strftime('%Y%m%d%H%M')
+        while True:
+            for each in os.listdir(data_folder_path):
+                images_zip = os.path.join(data_folder_path, each)
+                if zipfile.is_zipfile(images_zip):
+                    zip_file = zipfile.ZipFile(images_zip, 'r')
+                    zip_file.extractall(os.path.join(data_folder_path, unzip_folder_name, 'images'))
+                    zip_file.close()
+                    print('Unzip ' + each + ' Finish!')
+                    os.remove(images_zip)
+                    
+            images_folder_path = os.path.join(data_folder_path, unzip_folder_name, 'images')
+            return images_folder_path
 
 
 class CLSDatasetProcess(DatasetProcessing):

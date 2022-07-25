@@ -1,13 +1,11 @@
 from configparser import ConfigParser, RawConfigParser
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import shutil
 import time
-import zipfile
 from cvat import AutoDownloadOnCVAT, AutoUploadOnCVAT, CVATCookies
-from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge, ImageAugmentor, WithODCLSDatasetProcess
+from dataset_process import CLSDatasetProcess, CVATDatasetProcess, DataMerge, ImageAugmentor, InitDataProcess, WithODCLSDatasetProcess
 from models.ai_models import IriRecord, create_session as ai_create_session
-from models.amr_nifi_test_models import AmrRawData, create_session as amr_nifi_test_create_session
 from cls import train as cls_train
 from yolo.pre_process.yolo_preprocess import YOLOPreProcess
 
@@ -36,35 +34,13 @@ class Main:
         cvat_cookies = CVATCookies(self.api_path)
         self.cookie = cvat_cookies.get_login_cookies()
 
-    def images_download_from_image_pool(self, iri_record:IriRecord):
-        image_list = []
-        session = amr_nifi_test_create_session()
-        end_date = (datetime.strptime(
-            iri_record.end_date, 
-            '%Y-%m-%d %H:%M:%S.%f %z'
-        ) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S.000 %z')
-        amr_raw_data = session.query(AmrRawData.image_path).filter(
-            AmrRawData.site == iri_record.site,
-            AmrRawData.line_id.in_(eval(iri_record.line)),
-            AmrRawData.group_type == iri_record.group_type,
-            AmrRawData.create_time.between(iri_record.start_date, end_date),
-            AmrRawData.is_covered == True,
-            AmrRawData.ai_result == '0'
-        ).all()
-        for image_path_obj in amr_raw_data:
-            image_list.append(image_path_obj.image_path)
+    def init_dataset_process(self, iri_record):
+        init_data_process = InitDataProcess(iri_record)
+        image_list = init_data_process.images_list_from_image_pool()
+        init_data_process.download_images(image_list, self.data_folder_path)
+        images_folder_path = init_data_process.image_data_process(self.data_folder_path)
 
-
-    def image_data_process(self):
-        while True:
-            for each in os.listdir(self.data_folder_path):
-                images_zip = os.path.join(self.data_folder_path, each)
-                if zipfile.is_zipfile(images_zip):
-                    zip_file = zipfile.ZipFile(images_zip, 'r')
-                    zip_file.extractall(os.path.join(self.data_folder_path, each[:-4], 'images'))
-                    images_folder_path = os.path.join(self.data_folder_path, each[:-4], 'images')
-                    print('Unzip ' + each + ' Finish!')
-                    return images_folder_path
+        return images_folder_path
 
     def images_inference(self, iri_record, image_folder_path):
         work_path = os.getcwd()
@@ -77,10 +53,12 @@ class Main:
         od_model_path = os.path.join(work_path, 'yolo_inference/models', iri_record.project, pt_file)
         save_image_folder_path = os.path.join(work_path, os.path.dirname(image_folder_path))
         os.chdir(os.path.join(work_path, 'yolo_inference'))
-        os.system('python inference.py --cfg-path ' + cfg + 
-                    ' --od-model-path ' + od_model_path + 
-                    ' --image-folder-path ' + os.path.join(work_path, os.path.dirname(image_folder_path)) + 
-                    ' --save-image-folder-path ' + save_image_folder_path)
+        os.system(
+            'python inference.py --cfg-path ' + cfg + 
+            ' --od-model-path ' + od_model_path + 
+            ' --image-folder-path ' + os.path.join(work_path, os.path.dirname(image_folder_path)) + 
+            ' --save-image-folder-path ' + save_image_folder_path
+        )
         os.chdir(work_path)
 
         xml_folder_path = os.path.join(save_image_folder_path, 'xml')
@@ -91,7 +69,6 @@ class Main:
                 shutil.copyfile(os.path.join(save_image_folder_path, 'jpgxml', each), os.path.join(xml_folder_path, each))
 
         return xml_folder_path
-
 
     def upload(self, iri_record, images_folder, xml_path):
         cvat = AutoUploadOnCVAT(iri_record, self.api_path, self.annotation_format)
@@ -230,12 +207,11 @@ class Main:
         self.parsers()
         self.get_cookies()
 
-        # Download images in zip files
-
+        # Init data process
+        image_folder_path = self.init_dataset_process(iri_record)
 
         # Inference
         self.iri_record_status_update(iri_record.id, 'Inference On going')
-        image_folder_path = self.image_data_process()
         xml_folder_path = self.images_inference(iri_record, image_folder_path)
         self.iri_record_status_update(iri_record.id, 'Inference finish')
 
@@ -245,54 +221,53 @@ class Main:
         self.iri_record_status_update(iri_record.id, 'Upload imagewith log finish')
 
         # Decide OD_Initialized first or CLS_Initialized first
-        while True:
-            iri_record = self.check_od_or_cls()
-            if iri_record.status == 'OD_Initialized':
-                # Download
+        iri_record = self.check_od_or_cls()
+        if iri_record.status == 'OD_Initialized':
+            # Download
+            self.download(iri_record)
+
+            # Unzip Data
+            self.dataset_folder = self.cvat_datasets_process(iri_record)
+            class_name = iri_record.project
+            self.od_dataset_merge(self.dataset_folder, class_name)
+
+            # Pre-process
+            fullpath = os.getcwd() + self.dataset_folder[1:]
+            work_path = os.getcwd()
+            self.iri_record_status_update(iri_record.id, 'Trigger training for OD', 'Running')
+            self.yolo_preprocess = YOLOPreProcess(iri_record, fullpath)
+            self.yolo_preprocess.run()
+
+            # Yolo Training
+            os.chdir(work_path + '/yolo/training_code/yolov5')
+            self.iri_record_status_update(iri_record.id, 'Training for OD', 'Running')
+            # os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
+            os.chdir(work_path)
+
+        # CLS
+        iri_record = self.check_od_or_cls()
+        if iri_record.status == 'CLS_Initialized':
+            class_name = iri_record.project
+            # With OD Training
+            if iri_record.od_training == 'Done':
+                self.iri_record_status_update(iri_record.id, 'Trigger training for CLS', 'Done', 'Running')
+                cls_dataset_folder_list = self.with_od_cls_datasets_process(iri_record, self.dataset_folder)
+
+            # Without OD Training
+            else:
+                self.iri_record_status_update(iri_record.id, 'Trigger training for CLS', '-', 'Running')
                 self.download(iri_record)
+                cls_dataset_folder_list, cls_ng_category_list, cls_ok_category_list = self.cls_datasets_process(iri_record)
+                self.cls_dataset_merge(cls_dataset_folder_list, class_name, cls_ng_category_list, cls_ok_category_list)
 
-                # Unzip Data
-                self.dataset_folder = self.cvat_datasets_process(iri_record)
-                class_name = iri_record.project
-                self.od_dataset_merge(self.dataset_folder, class_name)
+            # Augmentor
+            self.images_augmentor(cls_dataset_folder_list)
 
-                # Pre-process
-                fullpath = os.getcwd() + self.dataset_folder[1:]
-                work_path = os.getcwd()
-                self.iri_record_status_update(iri_record.id, 'Trigger training for OD', 'Running')
-                self.yolo_preprocess = YOLOPreProcess(iri_record, fullpath)
-                self.yolo_preprocess.run()
-
-                # Yolo Training
-                os.chdir(work_path + '/yolo/training_code/yolov5')
-                self.iri_record_status_update(iri_record.id, 'Training for OD', 'Running')
-                # os.system('python train.py --batch 8 --epochs 300 --data ./data/' + class_name + '.yaml' + ' --cfg ./models/' + class_name + '.yaml')
-                os.chdir(work_path)
-
-            # CLS
-            if iri_record.status == 'CLS_Initialized':
-                class_name = iri_record.project
-                # With OD Training
-                if iri_record.od_training == 'Done':
-                    self.iri_record_status_update(iri_record.id, 'Trigger training for CLS', 'Done', 'Running')
-                    cls_dataset_folder_list = self.with_od_cls_datasets_process(iri_record, self.dataset_folder)
-
-                # Without OD Training
-                else:
-                    self.iri_record_status_update(iri_record.id, 'Trigger training for CLS', '-', 'Running')
-                    self.download(iri_record)
-                    cls_dataset_folder_list, cls_ng_category_list, cls_ok_category_list = self.cls_datasets_process(iri_record)
-                    self.cls_dataset_merge(cls_dataset_folder_list, class_name, cls_ng_category_list, cls_ok_category_list)
-
-                # Augmentor
-                self.images_augmentor(cls_dataset_folder_list)
-
-                # CLS Training
-                self.iri_record_status_update(iri_record.id, 'Training for CLS', '-', 'Running')
-                for cls_dataset_folder in cls_dataset_folder_list:
-                    model_save_folder = os.path.join('saved_models', class_name, 'save_' + class_name + '_' + cls_dataset_folder.split('\\')[-1] + '_' + datetime.now().strftime('%Y%m%d'))
-                    self.cls_training(cls_dataset_folder, model_save_folder)
-                break
+            # CLS Training
+            self.iri_record_status_update(iri_record.id, 'Training for CLS', '-', 'Running')
+            for cls_dataset_folder in cls_dataset_folder_list:
+                model_save_folder = os.path.join('saved_models', class_name, 'save_' + class_name + '_' + cls_dataset_folder.split('\\')[-1] + '_' + datetime.now().strftime('%Y%m%d'))
+                self.cls_training(cls_dataset_folder, model_save_folder)
 
 
 if __name__ == '__main__':
