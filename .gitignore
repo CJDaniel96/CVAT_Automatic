@@ -12,10 +12,10 @@ yolo_inference/output/*
 # Files
 *.jpg
 *.xml
-yolo/training_code/yolov5/*/JQ_SMT_B_CHIPRC.yaml
-yolo/training_code/yolov5/*/NK_DAOI_CHIPRC.yaml
-yolo/training_code/yolov5/*/NK_DAOI_DIMM.yaml
-yolo/training_code/yolov5/*/NK_DAOI_PCIE.yaml
+**/JQ_SMT_B_CHIPRC.yaml
+**/NK_DAOI_CHIPRC.yaml
+**/NK_DAOI_DIMM.yaml
+**/NK_DAOI_PCIE.yaml
 
 # Machine Models
 *.pt
