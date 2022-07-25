@@ -171,6 +171,15 @@ class DetectionRecord(Base):
                          nullable=False, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class ImagePool(Base):
+    __tablename__ = 'image_pool'
+    __table_args__ = {'schema': 'amr'}
+
+    line = Column(Text, nullable=False)
+    ip = Column(Text, nullable=False)
+    id = Column(Integer, primary_key=True, server_default=text("nextval('amr.image_pool_id_seq'::regclass)"))
+
+
 class ImgCategoryInfo(Base):
     __tablename__ = 'img_category_info'
     __table_args__ = {'schema': 'amr'}
@@ -274,6 +283,7 @@ class TrainingSchedule(Base):
         True), primary_key=True, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     training_start = Column(DateTime(True))
     training_end = Column(DateTime(True))
+
 
 class CategoryMapping(Base):
     __tablename__ = 'category_mapping'
