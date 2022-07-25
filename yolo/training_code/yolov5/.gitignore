@@ -35,6 +35,16 @@ data/images/*
 !data/images/bus.jpg
 !data/*.sh
 
+data/JQ_SMT_B_CHIPRC.yaml
+data/NK_DAOI_CHIPRC.yaml
+data/NK_DAOI_DIMM.yaml
+data/NK_DAOI_PCIE.yaml
+
+models/JQ_SMT_B_CHIPRC.yaml
+models/NK_DAOI_CHIPRC.yaml
+models/NK_DAOI_DIMM.yaml
+models/NK_DAOI_PCIE.yaml
+
 results*.csv
 
 # Datasets -------------------------------------------------------------------------------------------------------------
